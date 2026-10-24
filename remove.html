@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<link rel="stylesheet" href="./shared.css"><script src="./shared.js" defer></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}
+body{font-family:-apple-system,sans-serif;background:#f5f5f5;margin:0;padding:24px;color:#333}
+.box{max-width:1100px;margin:auto;background:#fff;padding:24px;border-radius:18px;box-shadow:0 3px 15px #0001}
+h2{margin:0 0 16px}
+input{width:100%;padding:13px;margin-bottom:15px;border:1px solid #ccc;border-radius:10px;font-size:16px}
+.drop{height:140px;border:2px dashed #bbb;border-radius:15px;display:flex;align-items:center;justify-content:center;text-align:center;cursor:pointer;background:#fafafa;transition:.18s}
+.drop.drag{border-color:#7E88A0;background:#f2f5f7;transform:scale(1.01)}
+.preview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:16px;align-items:start}
+.panel{border:1px solid #e5e5e5;border-radius:14px;padding:12px;min-width:0;overflow:hidden}
+.title{font-size:14px;font-weight:700;margin-bottom:10px}
+
+.imgbox{
+ width:100%;
+ height:350px;
+ min-height:350px;
+ max-height:350px;
+ border:1px solid #eee;
+ border-radius:12px;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ overflow:hidden;
+ position:relative;
+ background:
+ linear-gradient(45deg,#eee 25%,transparent 25%),
+ linear-gradient(-45deg,#eee 25%,transparent 25%),
+ linear-gradient(45deg,transparent 75%,#eee 75%),
+ linear-gradient(-45deg,transparent 75%,#eee 75%);
+ background-size:24px 24px;
+ background-position:0 0,0 12px,12px -12px,-12px 0;
+}
+
+.imgbox.dark-check{background:#4a4a4a;background-image:none}
+.imgbox img{max-width:100%;max-height:100%;object-fit:contain}
+
+#editBox{
+ display:block;
+ width:100%;
+ height:350px;
+ min-height:350px;
+ max-height:350px;
+ overflow:auto;
+ scrollbar-gutter:stable;
+ touch-action:none;
+ cursor:none;
+}
+#canvasStage{position:relative}
+#canvasStage[hidden]{display:none}
+#editCanvas{position:absolute;display:block;max-width:none;max-height:none;pointer-events:none}
+#editPh{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.placeholder{font-size:14px;color:#999;text-align:center}
+#selectionRect{position:fixed;display:none;border:2px dashed #7E88A0;background:#7E88A018;pointer-events:none;z-index:99998}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px;padding:12px;background:#f7f7f7;border-radius:12px}
+.tools button{padding:9px 14px;font-size:14px}
+.tools input[type=range]{width:130px;margin:0;padding:0}
+.tools input[type=number]{width:65px;margin:0;padding:6px 8px;font-size:14px}
+button{padding:13px;border:0;border-radius:10px;background:#C3D2DE;color:#3f4248;font-size:16px;font-weight:600;cursor:pointer;transition:.15s}
+button:hover:not(:disabled){filter:brightness(.97)}
+button.active{background:#7E88A0;color:#fff}
+button:disabled{opacity:.4;cursor:not-allowed}
+.tool-group{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.output-red.active{background:#c64d60;color:#fff}
+.output-blue.active{background:#3975c6;color:#fff}
+.tool-divider{color:#999;flex-shrink:0}
+.brush-feather-row{display:flex;align-items:center;gap:12px;flex-wrap:nowrap;max-width:100%;overflow-x:auto}
+.brush-feather-row .tool-group{flex-wrap:nowrap;flex-shrink:0}
+.tool-sep{width:1px;height:28px;background:#ddd;margin:0 3px}
+.tool-label{font-size:13px;color:#666;white-space:nowrap}
+.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.status{text-align:center;margin-top:15px;min-height:24px}
+.note{font-size:13px;color:#888;margin-top:8px;line-height:1.6}
+.result{display:none;margin-top:15px}
+.url{padding:12px;background:#f3f3f3;border-radius:10px;word-break:break-all;margin-bottom:8px}
+#brushCursor{position:fixed;display:none;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px #111;pointer-events:none;transform:translate(-50%,-50%);z-index:99999}
+.mobile-tabs,.mobile-help,#panBtn{display:none}
+button{touch-action:manipulation}
+@media(max-width:850px){
+ body{padding:8px;padding-bottom:max(12px,env(safe-area-inset-bottom))}
+ .box{padding:12px;border-radius:14px}
+ h2{font-size:22px;margin-bottom:12px}
+ .drop{height:84px}
+ .desktop-hint{display:none}
+ .mobile-help{display:block;font-size:13px;color:#666;line-height:1.6;margin:8px 0}
+ .mobile-tabs{display:flex;gap:6px;margin-top:12px}
+ .mobile-tabs button{flex:1;min-height:44px;padding:8px;font-size:14px}
+ .preview{display:block;margin-top:8px}
+ .preview .panel{display:none;padding:8px}
+ .preview .panel.mobile-active{display:block}
+ .imgbox,#editBox{height:auto;min-height:0;max-height:none;aspect-ratio:1;width:100%}
+ #editBox{scrollbar-gutter:auto}
+ .tools{padding:8px;gap:8px;margin-top:10px}
+ .tools>.tool-group{width:100%;gap:6px}
+ .tools button{min-height:44px;padding:10px;font-size:14px}
+ .tools .tool-group button{flex-grow:1}
+ .tools input[type=number]{font-size:16px;min-height:44px;width:48px;padding:5px}
+ .tools input[type=range]{width:clamp(60px,20vw,110px);height:44px}
+ .tool-sep{width:100%;height:1px;margin:0}
+ .brush-feather-row{width:100%;gap:8px;overflow:visible;justify-content:space-between}
+ .brush-feather-row .tool-group{gap:4px;min-width:0}
+ .tool-label{font-size:12px}
+ #brushValue{font-size:12px}
+ #panBtn{display:inline-block}
+ .actions{grid-template-columns:1fr 1fr;gap:8px}
+ .actions button{min-height:48px;font-size:14px;padding:10px}
+ #resetBtn{grid-column:1/-1}
+ .status{font-size:14px;line-height:1.5;margin-top:10px}
+ .note{font-size:12px}
+ #brushCursor{display:none!important}
+}
+
+</style>
+</head>
+
+<body>
+<header class="tool-header"><strong>JIWU 圖片工具</strong><nav aria-label="圖片工具"><a href="./index.html">圖床／裁切</a><a href="./remove.html">去背小幫手</a><a href="./history.html">已上傳圖片</a><button type="button" id="logout">登出</button></nav></header>
+<section class="tool-login" id="toolLogin"><form id="toolLoginForm"><h1>JIWU 圖片工具</h1><p>請使用後台密碼登入</p><input id="toolPassword" type="password" autocomplete="current-password" placeholder="後台密碼" required><button>登入</button><p id="toolLoginError" role="alert"></p></form></section>
+
+<div id="brushCursor"></div>
+<div id="selectionRect"></div>
+
+<div class="box">
+
+<h2>去背小幫手</h2>
+
+<input id="name" placeholder="輸入檔名／貨號（空白會自動命名）">
+
+<div class="drop" id="drop">
+ <div id="hint">點這裡選擇圖片<span class="desktop-hint"><br><br>或按 ⌘V 貼上／拖入圖片</span></div>
+</div>
+
+<input id="file" type="file" accept="image/*" hidden>
+
+<div class="mobile-tabs" role="tablist" aria-label="圖片預覽">
+ <button id="tabOriginal" role="tab" aria-selected="false" aria-controls="panelOriginal">原圖</button>
+ <button id="tabEdit" class="active" role="tab" aria-selected="true" aria-controls="panelEdit">修補／移動</button>
+ <button id="tabResult" role="tab" aria-selected="false" aria-controls="panelResult">成品</button>
+</div>
+<div class="mobile-help">用手指塗抹或框選；放大後按「移動畫布」拖曳查看。從畫布外滑動可捲動頁面。</div>
+<div class="preview">
+
+ <div class="panel" id="panelOriginal">
+  <div class="title">① 原圖</div>
+  <div class="imgbox">
+   <img id="originalImg" hidden>
+   <div class="placeholder" id="originalPh">尚未載入圖片</div>
+  </div>
+ </div>
+
+ <div class="panel mobile-active" id="panelEdit">
+  <div class="title">② 去背修補 600×600</div>
+  <div class="imgbox" id="editBox">
+   <div id="canvasStage" hidden>
+    <canvas id="editCanvas"></canvas>
+    <canvas id="maskOverlay" style="position:absolute;pointer-events:none"></canvas>
+   </div>
+   <div class="placeholder" id="editPh">尚未去背</div>
+  </div>
+ </div>
+
+ <div class="panel" id="panelResult">
+  <div class="title">③ 最終 600×600</div>
+  <div class="imgbox" id="resultBox">
+   <img id="resultImg" hidden>
+   <div class="placeholder" id="resultPh">尚未產生成品</div>
+  </div>
+ </div>
+
+</div>
+
+<div class="tools">
+
+ <div class="tool-group">
+  <button id="restoreBtn" class="active" disabled>➕</button>
+  <button id="eraseBtn" disabled>➖</button>
+ </div>
+
+ <div class="tool-sep"></div>
+
+ <div class="tool-group">
+  <button id="shapeCircleBtn" class="active" disabled>筆刷</button>
+  <button id="shapeBoxBtn" disabled>選取</button>
+  <button id="shapeWandBtn" disabled>🪄 魔術棒</button>
+  <span class="tool-divider" aria-hidden="true">｜</span>
+  <button id="shapeMoveBtn" disabled>框選移動</button>
+  <button id="shapeBrushMoveBtn" disabled>筆刷選取移動</button>
+  <button id="clearSelectionBtn" disabled>取消選取</button>
+  <span class="tool-divider" aria-hidden="true">｜</span>
+  <button id="outputRedBtn" class="output-red active" aria-pressed="true" title="長邊 520px，對齊底部紅線 40px">紅</button>
+  <button id="outputBlueBtn" class="output-blue" aria-pressed="false" title="長邊 560px，對齊底部藍線 20px">藍</button>
+  <button id="outputCenterBtn" aria-pressed="false" title="置中／回到對應底線">中</button>
+ </div>
+
+ <div class="tool-sep"></div>
+
+ <div class="brush-feather-row">
+ <div class="tool-group" id="brushControls">
+  <span class="tool-label">筆刷大小</span>
+  <input id="brushSize" type="range" min="5" max="160" value="60">
+  <span id="brushValue">60</span>
+ </div>
+
+ <div class="tool-group">
+  <span class="tool-label">邊緣羽化</span>
+  <input id="featherPx" type="number" min="0" max="20" step="1" value="2">
+  <span class="tool-label">px</span>
+ </div>
+ </div>
+
+ <div class="tool-group" id="wandControls" style="display:none">
+  <span class="tool-label">魔術棒容差</span>
+  <input id="wandTolerance" type="range" min="0" max="120" value="40">
+  <input id="wandToleranceNum" type="number" min="0" max="120" value="40">
+ </div>
+
+ <div class="tool-sep"></div>
+
+ <div class="tool-group">
+  <button id="panBtn" disabled>移動畫布</button>
+  <button id="zoomOutBtn" disabled>－</button>
+  <button id="zoomResetBtn" disabled>100%</button>
+  <button id="zoomInBtn" disabled>＋</button>
+  <button id="bgCheckBtn" disabled>深灰底</button>
+ </div>
+
+ <div class="tool-sep"></div>
+
+ <div class="tool-group">
+  <button id="undoBtn" disabled>↩ 復原</button>
+  <button id="resetCutBtn" disabled>重設</button>
+  <button id="autoCutBtn" disabled>自動</button>
+ </div>
+
+
+</div>
+
+<div class="actions">
+ <button id="uploadCutBtn" disabled>上傳去背圖</button>
+ <button id="uploadOriginalBtn" disabled>上傳原圖</button>
+ <button id="resetBtn" disabled>重選圖片</button>
+</div>
+
+<div class="status" id="status"></div>
+
+<div class="note">
+貼上、選檔或拖入圖片後不會自動去背；按「自動」才會對目前編輯圖片去背。<br>
+➕ 補回原圖　／　➖ 擦除背景<br>
+邊緣羽化預設 2px，套用於筆刷／框選修補與選取移動；設為 0 可使用硬邊。<br>
+筆刷選取移動：塗出藍色選取範圍，再拖曳藍色範圍移動；可調整筆刷大小，按「取消選取」重新選取。<br>
+框選移動：拖出方框選取商品，再從框內拖曳移動；點框外可重新框選。Esc 取消選取／本次拖曳。<br>
+要排成 3／2／2，可直接把第二列的商品分批移到第三列。<br>
+深灰底只供檢查去背，不會加進輸出圖片。<br>
+成品固定 600×600；「紅」：長邊 520px、對齊底部紅線（40px）；「藍」：長邊 560px、對齊底部藍線（20px）；「中」切換置中。預設紅。
+</div>
+
+<div class="result" id="result">
+ <div class="url" id="url"></div>
+ <button id="copyBtn">複製圖片網址</button>
+</div>
+
+</div>
+
+<script type="module">
+
+import{removeBackground,preload}from'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm';
+
+const $=id=>document.getElementById(id);
+const canvas=$('editCanvas'),ctx=canvas.getContext('2d',{alpha:true});
+const editBox=$('editBox'),stage=$('canvasStage'),selectionRect=$('selectionRect');
+
+const CUT_MODEL='small',CUT_MAX_SIDE=1600,EDIT_MAX_SIDE=1600,HISTORY_MAX=5;
+
+let originalDataUrl='',finalDataUrl='',originalSource=null,removedSource=null,originalWork=null;
+let panning=false,panStart=null;
+let mode='restore',shapeMode='circle',drawing=false,pointerInside=false;
+let lastPoint=null,startPoint=null,currentPoint=null,startClient=null,currentClient=null;
+let history=[],finalTimer=0,zoomLevel=1,bgDark=false;
+let moveSelection=null,moveDrag=null,moveSelecting=false;
+let brushMask=null,brushLast=null;
+let outputColor='red',outputCentered=false;
+let loadVersion=0,autoBusy=false,resetBaseline=null,baselineIsCut=false;
+
+preload({model:CUT_MODEL}).catch(()=>{});
+
+/* 圖片 */
+$('drop').onclick=()=>$('file').click();
+$('file').onchange=()=>{const f=$('file').files[0];if(f)handleFile(f)};
+
+document.addEventListener('paste',e=>{
+ const item=[...e.clipboardData.items].find(x=>x.type.startsWith('image/'));
+ if(item)handleFile(item.getAsFile());
+});
+
+['dragenter','dragover'].forEach(t=>$('drop').addEventListener(t,e=>{
+ e.preventDefault();e.stopPropagation();$('drop').classList.add('drag');
+}));
+
+['dragleave','drop'].forEach(t=>$('drop').addEventListener(t,e=>{
+ e.preventDefault();e.stopPropagation();$('drop').classList.remove('drag');
+}));
+
+$('drop').addEventListener('drop',e=>{
+ const f=[...e.dataTransfer.files].find(x=>x.type.startsWith('image/'));
+ if(f)handleFile(f);else $('status').textContent='❌ 請拖入圖片檔';
+});
+
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>e.preventDefault());
+
+/* 按鈕 */
+$('restoreBtn').onclick=()=>setMode('restore');
+$('eraseBtn').onclick=()=>setMode('erase');
+$('shapeCircleBtn').onclick=()=>setShapeMode('circle');
+$('shapeBoxBtn').onclick=()=>setShapeMode('box');
+$('shapeWandBtn').onclick=()=>setShapeMode('wand');
+$('shapeBrushMoveBtn').onclick=()=>setShapeMode('brushMove');
+$('clearSelectionBtn').onclick=cancelMove;
+$('shapeMoveBtn').onclick=()=>setShapeMode('move');
+$('undoBtn').onclick=undo;
+$('resetCutBtn').onclick=resetCut;
+$('autoCutBtn').onclick=autoCut;
+$('uploadCutBtn').onclick=()=>upload(finalDataUrl);
+$('uploadOriginalBtn').onclick=()=>upload(originalDataUrl);
+$('resetBtn').onclick=resetAll;
+$('copyBtn').onclick=copyUrl;
+$('outputRedBtn').onclick=()=>setOutputColor('red');
+$('outputBlueBtn').onclick=()=>setOutputColor('blue');
+$('outputCenterBtn').onclick=()=>{outputCentered=!outputCentered;refreshOutputButtons()};
+function setOutputColor(color){
+ outputColor=color;outputCentered=false;refreshOutputButtons();
+}
+function refreshOutputButtons(){
+ for(const [id,active] of [['outputRedBtn',outputColor==='red'],['outputBlueBtn',outputColor==='blue'],['outputCenterBtn',outputCentered]]){
+  $(id).classList.toggle('active',active);$(id).setAttribute('aria-pressed',String(active));
+ }
+ if(originalWork)scheduleFinalUpdate(0);
+}
+
+/* 手機預覽與畫布平移 */
+for(const name of ['Original','Edit','Result']){
+ $('tab'+name).onclick=()=>{
+  if(drawing)return;
+  hideSelection();
+  for(const n of ['Original','Edit','Result']){
+   $('panel'+n).classList.toggle('mobile-active',n===name);
+   $('tab'+n).classList.toggle('active',n===name);
+   $('tab'+n).setAttribute('aria-selected',String(n===name));
+  }
+  if(name==='Edit'&&originalWork)requestAnimationFrame(()=>applyZoom(false));
+ };
+}
+$('panBtn').onclick=()=>{
+ cancelMove();panning=!panning;
+ $('panBtn').classList.toggle('active',panning);
+ editBox.style.cursor=panning?'grab':shapeMode==='circle'?'none':'crosshair';
+};
+/* 放大縮小 */
+$('zoomOutBtn').onclick=()=>setZoom(zoomLevel-.25);
+$('zoomInBtn').onclick=()=>setZoom(zoomLevel+.25);
+$('zoomResetBtn').onclick=()=>setZoom(1);
+
+function setZoom(v){
+ zoomLevel=Math.max(.5,Math.min(3,v));
+ applyZoom(true);
+}
+
+function applyZoom(center=false){
+ if(!canvas.width)return;
+
+ const bw=editBox.clientWidth,bh=editBox.clientHeight;
+ if(!bw||!bh)return;
+ const fit=Math.min(bw/canvas.width,bh/canvas.height);
+ const dw=Math.round(canvas.width*fit*zoomLevel);
+ const dh=Math.round(canvas.height*fit*zoomLevel);
+ const sw=Math.max(bw,dw),sh=Math.max(bh,dh);
+
+ stage.style.width=sw+'px';
+ stage.style.height=sh+'px';
+
+ canvas.style.width=dw+'px';
+ canvas.style.height=dh+'px';
+ canvas.style.left=Math.round((sw-dw)/2)+'px';
+ canvas.style.top=Math.round((sh-dh)/2)+'px';
+
+ renderMoveSelection();
+ $('zoomResetBtn').textContent=Math.round(zoomLevel*100)+'%';
+ $('zoomOutBtn').disabled=zoomLevel<=.5;
+ $('zoomInBtn').disabled=zoomLevel>=3;
+
+ if(center)requestAnimationFrame(()=>{
+  editBox.scrollLeft=Math.max(0,(sw-bw)/2);
+  editBox.scrollTop=Math.max(0,(sh-bh)/2);
+ });
+}
+
+/* 深灰底 */
+$('bgCheckBtn').onclick=()=>{
+ bgDark=!bgDark;
+ $('bgCheckBtn').classList.toggle('active',bgDark);
+ editBox.classList.toggle('dark-check',bgDark);
+ $('resultBox').classList.toggle('dark-check',bgDark);
+};
+
+/* 筆刷大小 */
+$('brushSize').oninput=()=>{
+ $('brushValue').textContent=$('brushSize').value;
+ setCursorSize();
+};
+
+function setCursorSize(){
+ const s=$('brushSize').value;
+ $('brushCursor').style.width=s+'px';
+ $('brushCursor').style.height=s+'px';
+}
+setCursorSize();
+
+/* 魔術棒容差 */
+$('wandTolerance').oninput=()=>$('wandToleranceNum').value=$('wandTolerance').value;
+$('wandToleranceNum').oninput=syncTolerance;
+$('wandToleranceNum').onchange=syncTolerance;
+
+function syncTolerance(){
+ let v=Number($('wandToleranceNum').value);
+ if(isNaN(v))v=40;
+ v=Math.max(0,Math.min(120,v));
+ $('wandToleranceNum').value=v;
+ $('wandTolerance').value=v;
+}
+
+/* 載入 */
+async function handleFile(f){
+ if(!window.jiwuTools?.authenticated||window.jiwuTools.busy)return;
+ if(!f||!f.type.startsWith('image/'))return $('status').textContent='❌ 請選擇圖片檔';
+ resetAll();
+ const version=loadVersion;
+ $('hint').hidden=true;
+ $('resetBtn').disabled=false;
+ $('status').textContent='正在載入圖片…';
+ $('editPh').textContent='載入中…';
+ try{
+  const dataUrl=await fileToDataUrl(f);
+  const source=await loadImage(dataUrl);
+  if(version!==loadVersion)return;
+  originalDataUrl=dataUrl;originalSource=source;removedSource=source;
+  $('originalImg').src=dataUrl;
+  $('originalImg').hidden=false;
+  $('originalPh').style.display='none';
+  $('uploadOriginalBtn').disabled=false;
+  setupEditor();
+  resetBaseline=cloneCanvas(canvas);baselineIsCut=false;
+  ['restoreBtn','eraseBtn','shapeCircleBtn','shapeBoxBtn','shapeWandBtn','shapeMoveBtn','shapeBrushMoveBtn','clearSelectionBtn','resetCutBtn','autoCutBtn',
+   'panBtn','zoomOutBtn','zoomResetBtn','zoomInBtn','bgCheckBtn'].forEach(id=>$(id).disabled=false);
+  applyZoom(true);updateFinal();
+  $('status').textContent='✅ 已載入圖片，可直接編輯；按「自動」才會去背';
+ }catch(e){
+  if(version!==loadVersion)return;
+  console.error(e);
+  $('status').textContent='❌ 載入失敗：'+e.message;
+  $('editPh').textContent='載入失敗';
+ }
+}
+
+async function autoCut(){
+ if(!originalWork||autoBusy)return;
+ cancelMove();clearTimeout(finalTimer);
+ const version=loadVersion;
+ const input=cloneCanvas(canvas);
+ autoBusy=true;
+ const controls=[...document.querySelectorAll('.tools button,.tools input,#uploadCutBtn')];
+ const states=controls.map(el=>el.disabled);
+ controls.forEach(el=>el.disabled=true);
+ editBox.style.pointerEvents='none';
+ $('status').textContent='正在自動去背…';
+ try{
+  const inputBlob=await canvasToBlob(input,'image/png',1);
+  const blob=await removeBackground(inputBlob,{model:CUT_MODEL,output:{format:'image/png',quality:1}});
+  const url=URL.createObjectURL(blob);
+  let cut;
+  try{cut=await loadImage(url)}finally{URL.revokeObjectURL(url)}
+  if(version!==loadVersion)return;
+  saveHistory();
+  ctx.clearRect(0,0,600,600);ctx.drawImage(cut,0,0,600,600);
+  resetBaseline=cloneCanvas(canvas);baselineIsCut=true;
+  updateFinal();
+  $('status').textContent='✅ 自動去背完成，可繼續修補或移動商品';
+ }catch(e){
+  if(version===loadVersion)$('status').textContent='❌ 去背失敗：'+e.message;
+ }finally{
+  if(version===loadVersion){
+   autoBusy=false;
+   controls.forEach((el,i)=>el.disabled=states[i]);
+   $('undoBtn').disabled=!history.length;
+   editBox.style.pointerEvents='';
+  }
+ }
+}
+
+function setupEditor(){
+ const rw=removedSource.naturalWidth,rh=removedSource.naturalHeight;
+ const s=520/Math.max(rw,rh);
+ const dw=Math.round(rw*s),dh=Math.round(rh*s);
+ const dx=Math.round((600-dw)/2),dy=Math.round((600-dh)/2);
+
+ canvas.width=600;
+ canvas.height=600;
+
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ ctx.imageSmoothingEnabled=true;
+ ctx.imageSmoothingQuality='high';
+ ctx.drawImage(removedSource,dx,dy,dw,dh);
+
+ originalWork=document.createElement('canvas');
+ originalWork.width=canvas.width;
+ originalWork.height=canvas.height;
+
+ const oc=originalWork.getContext('2d');
+ oc.imageSmoothingEnabled=true;
+ oc.imageSmoothingQuality='high';
+ oc.drawImage(originalSource,dx,dy,dw,dh);
+
+ stage.hidden=false;
+ $('editPh').style.display='none';
+ history=[];
+ zoomLevel=1;
+ $('undoBtn').disabled=true;
+}
+
+/* 模式 */
+function setMode(m){
+ mode=m;
+ $('restoreBtn').classList.toggle('active',m==='restore');
+ $('eraseBtn').classList.toggle('active',m==='erase');
+}
+
+function setShapeMode(s){
+ panning=false;panStart=null;$('panBtn').classList.remove('active');
+ cancelMove();
+ shapeMode=s;
+ $('shapeMoveBtn').classList.toggle('active',s==='move');
+ $('shapeBrushMoveBtn').classList.toggle('active',s==='brushMove');
+ $('shapeCircleBtn').classList.toggle('active',s==='circle');
+ $('shapeBoxBtn').classList.toggle('active',s==='box');
+ $('shapeWandBtn').classList.toggle('active',s==='wand');
+ $('brushControls').style.display=(s==='circle'||s==='brushMove')?'flex':'none';
+ $('wandControls').style.display=s==='wand'?'flex':'none';
+ editBox.style.cursor=s==='circle'?'none':'crosshair';
+ $('brushCursor').style.display=s==='circle'&&pointerInside?'block':'none';
+ hideSelection();
+}
+
+/* 滑鼠 */
+editBox.addEventListener('pointerenter',e=>{
+ pointerInside=true;
+ if(shapeMode==='circle'){moveCursor(e);$('brushCursor').style.display='block'}
+});
+
+editBox.addEventListener('pointerleave',()=>{
+ pointerInside=false;
+ if(!drawing)$('brushCursor').style.display='none';
+});
+
+editBox.addEventListener('pointerdown',e=>{
+ if(!originalWork||autoBusy)return;
+ e.preventDefault();
+ if(panning){panStart={x:e.clientX,y:e.clientY,left:editBox.scrollLeft,top:editBox.scrollTop};editBox.setPointerCapture?.(e.pointerId);return}
+ clearTimeout(finalTimer);
+
+ if(shapeMode==='move'||shapeMode==='brushMove'){beginMove(e);return}
+
+ if(shapeMode==='wand'){
+  saveHistory();
+  magicWand(getPoint(e));
+  scheduleFinalUpdate(0);
+  $('status').textContent='🪄 魔術棒完成（容差 '+$('wandTolerance').value+'）';
+  return;
+ }
+
+ saveHistory();
+ drawing=true;
+ startPoint=currentPoint=getPoint(e);
+
+ if(shapeMode==='circle'){
+  lastPoint=startPoint;
+  stamp(lastPoint);
+ }else{
+  startClient=currentClient=getClientPoint(e);
+  showSelection(startClient,currentClient);
+ }
+
+ editBox.setPointerCapture?.(e.pointerId);
+});
+
+editBox.addEventListener('pointermove',e=>{
+ if(panStart){e.preventDefault();editBox.scrollLeft=panStart.left+panStart.x-e.clientX;editBox.scrollTop=panStart.top+panStart.y-e.clientY;return}
+ if(shapeMode==='circle')moveCursor(e);
+ if(!drawing)return;
+ if(shapeMode==='move'||shapeMode==='brushMove'){updateMove(e);return}
+
+ e.preventDefault();
+ const events=e.getCoalescedEvents?e.getCoalescedEvents():[e];
+
+ for(const ev of events){
+  currentPoint=getPoint(ev);
+
+  if(shapeMode==='circle'){
+   drawBetween(lastPoint,currentPoint);
+   lastPoint=currentPoint;
+  }else{
+   currentClient=getClientPoint(ev);
+   showSelection(startClient,currentClient);
+  }
+ }
+});
+
+editBox.addEventListener('pointerup',finishStroke);
+editBox.addEventListener('pointercancel',finishStroke);
+
+function finishStroke(e){
+ if(panStart){panStart=null;return}
+ if(!drawing)return;
+ if(shapeMode==='move'||shapeMode==='brushMove'){finishMove(e);return}
+ drawing=false;
+ if(e)currentPoint=getPoint(e);
+
+ if(shapeMode==='box'){
+  hideSelection();
+  if(startPoint&&currentPoint)applyBoxSelect(startPoint,currentPoint);
+ }
+
+ lastPoint=startPoint=currentPoint=startClient=currentClient=null;
+
+ if(shapeMode==='circle'){
+  if(e&&pointerInside)moveCursor(e);
+  $('brushCursor').style.display=pointerInside?'block':'none';
+ }
+
+ scheduleFinalUpdate(0);
+ $('status').textContent='✅ 已更新修補結果';
+}
+
+/* 選取框 */
+function getClientPoint(e){
+ const r=editBox.getBoundingClientRect();
+ return{
+  x:Math.max(r.left,Math.min(r.right,e.clientX)),
+  y:Math.max(r.top,Math.min(r.bottom,e.clientY))
+ };
+}
+
+function showSelection(a,b){
+ if(!a||!b)return;
+ selectionRect.style.display='block';
+ selectionRect.style.left=Math.min(a.x,b.x)+'px';
+ selectionRect.style.top=Math.min(a.y,b.y)+'px';
+ selectionRect.style.width=Math.abs(a.x-b.x)+'px';
+ selectionRect.style.height=Math.abs(a.y-b.y)+'px';
+}
+
+function hideSelection(){selectionRect.style.display='none'}
+
+
+/* 框選移動：預覽從同一份快照重繪，避免重複拖曳留下殘影 */
+
+function paintMoveMask(a,b){
+ const c=brushMask.getContext('2d'),r=getRadius();
+ c.strokeStyle=c.fillStyle='#000';c.lineWidth=r*2;c.lineCap='round';
+ c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();
+ c.beginPath();c.arc(b.x,b.y,r,0,Math.PI*2);c.fill();
+ renderMaskOverlay();
+}
+function finishBrushMask(){
+ const w=brushMask.width,h=brushMask.height,d=brushMask.getContext('2d').getImageData(0,0,w,h).data;
+ let x1=w,y1=h,x2=-1,y2=-1;
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(d[(y*w+x)*4+3]){x1=Math.min(x1,x);y1=Math.min(y1,y);x2=Math.max(x2,x);y2=Math.max(y2,y)}
+ if(x2<0){moveSelection=null;return}
+ const mask=document.createElement('canvas');mask.width=x2-x1+1;mask.height=y2-y1+1;
+ mask.getContext('2d').drawImage(brushMask,-x1,-y1);
+ moveSelection={x:x1,y:y1,w:mask.width,h:mask.height,mask};
+}
+function renderMaskOverlay(){
+ const o=$('maskOverlay');o.width=canvas.width;o.height=canvas.height;
+ for(const k of ['width','height','left','top'])o.style[k]=canvas.style[k];
+ const c=o.getContext('2d');
+ if(brushMask)c.drawImage(brushMask,0,0);
+ else if(moveSelection?.mask)c.drawImage(moveSelection.mask,moveSelection.x,moveSelection.y);
+ c.globalCompositeOperation='source-in';c.fillStyle='rgba(50,130,255,.35)';c.fillRect(0,0,o.width,o.height);
+}
+
+function selectionBounds(a,b){
+ const x=Math.floor(Math.min(a.x,b.x)),y=Math.floor(Math.min(a.y,b.y));
+ return {x,y,w:Math.ceil(Math.max(a.x,b.x))-x,h:Math.ceil(Math.max(a.y,b.y))-y};
+}
+function renderMoveSelection(){
+ renderMaskOverlay();
+ if(!moveSelection)return hideSelection();
+ const r=canvas.getBoundingClientRect(),s=moveSelection;
+ showSelection({x:r.left+s.x*r.width/canvas.width,y:r.top+s.y*r.height/canvas.height},
+ {x:r.left+(s.x+s.w)*r.width/canvas.width,y:r.top+(s.y+s.h)*r.height/canvas.height});
+}
+function beginMove(e){
+ const p=getPoint(e),s=moveSelection;
+ drawing=true;
+ if(s&&p.x>=s.x&&p.x<s.x+s.w&&p.y>=s.y&&p.y<s.y+s.h&&(!s.mask||s.mask.getContext('2d').getImageData(Math.floor(p.x-s.x),Math.floor(p.y-s.y),1,1).data[3])){
+  const base=cloneCanvas(canvas),piece=document.createElement('canvas');
+  piece.width=s.w;piece.height=s.h;
+  piece.getContext('2d').drawImage(canvas,s.x,s.y,s.w,s.h,0,0,s.w,s.h);
+  const raw=s.mask||document.createElement('canvas');
+  if(!s.mask){raw.width=s.w;raw.height=s.h;const rc=raw.getContext('2d');rc.fillStyle='#000';rc.fillRect(0,0,s.w,s.h)}
+  const cutMask=featherMask(raw);
+  const pc=piece.getContext('2d');pc.globalCompositeOperation='destination-in';pc.drawImage(cutMask,0,0);pc.globalCompositeOperation='source-over';
+  moveDrag={base,piece,cutMask,start:p,rect:{...s}};
+ }else if(shapeMode==='brushMove'){
+  brushMask=document.createElement('canvas');brushMask.width=canvas.width;brushMask.height=canvas.height;
+  if(s?.mask)brushMask.getContext('2d').drawImage(s.mask,s.x,s.y);
+  moveSelecting=true;brushLast=p;paintMoveMask(p,p);
+ }else{
+  moveSelection=null;moveSelecting=true;startPoint=p;
+  startClient=getClientPoint(e);showSelection(startClient,startClient);
+ }
+ editBox.setPointerCapture?.(e.pointerId);
+}
+function updateMove(e){
+ if(moveSelecting&&shapeMode==='brushMove'){
+  const p=getPoint(e);paintMoveMask(brushLast,p);brushLast=p;return;
+ }
+ if(moveSelecting){
+  currentPoint=getPoint(e);showSelection(startClient,getClientPoint(e));return;
+ }
+ if(!moveDrag)return;
+ const p=getPoint(e),d=moveDrag,s=d.rect;
+ moveSelection={...s,
+  x:Math.max(0,Math.min(canvas.width-s.w,s.x+Math.round(p.x-d.start.x))),
+  y:Math.max(0,Math.min(canvas.height-s.h,s.y+Math.round(p.y-d.start.y)))};
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ ctx.drawImage(d.base,0,0);
+ if(moveSelection.x===s.x&&moveSelection.y===s.y){renderMoveSelection();return}
+ ctx.save();ctx.globalCompositeOperation='destination-out';ctx.drawImage(d.cutMask,s.x,s.y);ctx.restore();
+ ctx.drawImage(d.piece,moveSelection.x,moveSelection.y);
+ renderMoveSelection();
+}
+function finishMove(e){
+ if(e?.type==='pointercancel'){cancelMove();return}
+ updateMove(e);
+ drawing=false;
+ if(moveSelecting&&shapeMode==='brushMove'){
+  finishBrushMask();moveSelecting=false;brushMask=null;brushLast=null;
+  $('status').textContent='已塗選，拖曳藍色範圍即可移動；在範圍外塗抹可追加選取';
+ }else if(moveSelecting){
+  moveSelection=selectionBounds(startPoint,getPoint(e));
+  if(moveSelection.w<2||moveSelection.h<2)moveSelection=null;
+  moveSelecting=false;startPoint=null;
+  $('status').textContent=moveSelection?'已框選，從框內拖曳即可移動':'請拖出方框選取商品';
+ }else if(moveDrag){
+  if(moveSelection.x!==moveDrag.rect.x||moveSelection.y!==moveDrag.rect.y){
+   history.push(moveDrag.base);
+   if(history.length>HISTORY_MAX)history.shift();
+   $('undoBtn').disabled=false;
+   updateFinal();
+  }
+  moveDrag=null;
+  $('status').textContent='✅ 已移動，可繼續框選其他商品';
+ }
+ renderMoveSelection();
+}
+function cancelMove(){
+ if(moveDrag){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(moveDrag.base,0,0)}
+ moveDrag=null;moveSelection=null;moveSelecting=false;drawing=false;brushMask=null;brushLast=null;hideSelection();renderMaskOverlay();
+}
+function resizeOriginalWork(w,h){
+ if(!originalWork)return;
+ const c=document.createElement('canvas');c.width=w;c.height=h;
+ c.getContext('2d').drawImage(originalWork,0,0);originalWork=c;
+}
+editBox.addEventListener('scroll',()=>{if(shapeMode==='move'||shapeMode==='brushMove')renderMoveSelection()});
+document.addEventListener('keydown',e=>{
+ if(e.key==='Escape'&&(shapeMode==='move'||shapeMode==='brushMove')){cancelMove();$('status').textContent='已取消選取'}
+});
+window.addEventListener('resize',()=>requestAnimationFrame(renderMoveSelection));
+
+/* Canvas座標 */
+function getPoint(e){
+ const r=canvas.getBoundingClientRect();
+ let x=(e.clientX-r.left)*canvas.width/r.width;
+ let y=(e.clientY-r.top)*canvas.height/r.height;
+ return{
+  x:Math.max(0,Math.min(canvas.width,x)),
+  y:Math.max(0,Math.min(canvas.height,y))
+ };
+}
+
+function moveCursor(e){
+ $('brushCursor').style.left=e.clientX+'px';
+ $('brushCursor').style.top=e.clientY+'px';
+}
+
+/* 筆刷 */
+function getRadius(){
+ const r=canvas.getBoundingClientRect();
+ return Number($('brushSize').value)*canvas.width/r.width/2;
+}
+
+function drawBetween(a,b){
+ if(!a||!b)return;
+ const radius=getRadius(),dx=b.x-a.x,dy=b.y-a.y;
+ const steps=Math.max(1,Math.ceil(Math.hypot(dx,dy)/Math.max(2,radius*.45)));
+
+ for(let i=1;i<=steps;i++)stamp({x:a.x+dx*i/steps,y:a.y+dy*i/steps});
+}
+
+/* 羽化數值以 600×600 畫布像素計算，0 表示硬邊 */
+function featherAmount(){
+ return Math.max(0,Math.min(20,Number($('featherPx').value)||0));
+}
+function featherMask(mask){
+ const px=featherAmount();
+ if(!px)return mask;
+ // 先留透明外框再模糊，避免畫布邊界延伸成不透明。
+ const pad=Math.ceil(px*3),padded=document.createElement('canvas');
+ padded.width=mask.width+pad*2;padded.height=mask.height+pad*2;
+ padded.getContext('2d').drawImage(mask,pad,pad);
+ const out=document.createElement('canvas');out.width=mask.width;out.height=mask.height;
+ const c=out.getContext('2d');c.filter='blur('+px+'px)';c.drawImage(padded,-pad,-pad);
+ c.filter='none';c.globalCompositeOperation='destination-in';c.drawImage(mask,0,0);
+ return out;
+}
+function applyRepairMask(mask,x,y){
+ const soft=featherMask(mask);
+ if(mode==='erase'){
+  ctx.save();ctx.globalCompositeOperation='destination-out';ctx.drawImage(soft,x,y);ctx.restore();
+ }else{
+  const patch=document.createElement('canvas');patch.width=mask.width;patch.height=mask.height;
+  const pc=patch.getContext('2d');pc.drawImage(originalWork,-x,-y);
+  pc.globalCompositeOperation='destination-in';pc.drawImage(soft,0,0);
+  ctx.drawImage(patch,x,y);
+ }
+}
+function stamp(p){
+ const r=getRadius(),x=Math.max(0,Math.floor(p.x-r)),y=Math.max(0,Math.floor(p.y-r));
+ const w=Math.min(canvas.width,Math.ceil(p.x+r))-x,h=Math.min(canvas.height,Math.ceil(p.y+r))-y;
+ if(w<=0||h<=0)return;
+ const mask=document.createElement('canvas');mask.width=w;mask.height=h;
+ const c=mask.getContext('2d');c.fillStyle='#000';c.beginPath();c.arc(p.x-x,p.y-y,r,0,Math.PI*2);c.fill();
+ applyRepairMask(mask,x,y);
+}
+
+/* 方形選取 */
+function applyBoxSelect(p1,p2){
+ const {x,y,w,h}=selectionBounds(p1,p2);
+ if(w<=0||h<=0)return;
+ const mask=document.createElement('canvas');mask.width=w;mask.height=h;
+ const c=mask.getContext('2d');c.fillStyle='#000';c.fillRect(0,0,w,h);
+ applyRepairMask(mask,x,y);
+}
+
+/* 魔術棒 */
+function magicWand(p){
+ const w=canvas.width,h=canvas.height;
+ const sx=Math.max(0,Math.min(w-1,Math.floor(p.x)));
+ const sy=Math.max(0,Math.min(h-1,Math.floor(p.y)));
+ const tolerance=Number($('wandTolerance').value)||0;
+ const source=mode==='restore'?originalWork:canvas;
+ const sc=source.getContext('2d',{willReadFrequently:true});
+ const src=sc.getImageData(0,0,w,h),dst=ctx.getImageData(0,0,w,h);
+ const start=sy*w+sx,si=start*4;
+ const r0=src.data[si],g0=src.data[si+1],b0=src.data[si+2],a0=src.data[si+3];
+ const seen=new Uint8Array(w*h),stack=new Int32Array(w*h);
+ let top=0;
+ stack[top++]=start;seen[start]=1;
+
+ const push=n=>{if(!seen[n]){seen[n]=1;stack[top++]=n}};
+
+ while(top){
+  const pos=stack[--top],i=pos*4;
+  const r=src.data[i],g=src.data[i+1],b=src.data[i+2],a=src.data[i+3];
+  const diff=Math.max(Math.abs(r-r0),Math.abs(g-g0),Math.abs(b-b0),Math.abs(a-a0));
+  if(diff>tolerance)continue;
+
+  if(mode==='erase')dst.data[i+3]=0;
+  else{
+   dst.data[i]=r;dst.data[i+1]=g;dst.data[i+2]=b;dst.data[i+3]=a;
+  }
+
+  const x=pos%w,y=(pos/w)|0;
+  if(x>0)push(pos-1);
+  if(x<w-1)push(pos+1);
+  if(y>0)push(pos-w);
+  if(y<h-1)push(pos+w);
+  if(x>0&&y>0)push(pos-w-1);
+  if(x<w-1&&y>0)push(pos-w+1);
+  if(x>0&&y<h-1)push(pos+w-1);
+  if(x<w-1&&y<h-1)push(pos+w+1);
+ }
+
+ ctx.putImageData(dst,0,0);
+}
+
+/* 歷史 */
+function cloneCanvas(source){
+ const c=document.createElement('canvas');
+ c.width=source.width;c.height=source.height;
+ c.getContext('2d').drawImage(source,0,0);
+ return c;
+}
+
+function saveHistory(){
+ history.push(cloneCanvas(canvas));
+ if(history.length>HISTORY_MAX)history.shift();
+ $('undoBtn').disabled=false;
+}
+
+function undo(){
+ cancelMove();
+ if(!history.length)return;
+ hideSelection();
+ const h=history.pop();
+ canvas.width=h.width;canvas.height=h.height;
+ resizeOriginalWork(h.width,h.height);
+ applyZoom(false);
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ ctx.drawImage(h,0,0);
+ $('undoBtn').disabled=!history.length;
+ scheduleFinalUpdate(0);
+ $('status').textContent='↩ 已復原';
+}
+
+function resetCut(){
+ if(!resetBaseline)return;
+ cancelMove();clearTimeout(finalTimer);
+ ctx.clearRect(0,0,600,600);ctx.drawImage(resetBaseline,0,0);
+ history=[];$('undoBtn').disabled=true;
+ scheduleFinalUpdate(0);
+ $('status').textContent=baselineIsCut?'✅ 已重設為自動去背結果':'✅ 已重設為載入時的圖片';
+}
+
+/* 600×600 */
+function scheduleFinalUpdate(delay=60){
+ clearTimeout(finalTimer);
+ finalTimer=setTimeout(()=>{
+  try{updateFinal()}
+  catch(e){console.error(e);$('status').textContent='❌ '+e.message}
+ },delay);
+}
+
+function updateFinal(){
+ finalDataUrl=make600Image(canvas);
+ $('resultImg').src=finalDataUrl;
+ $('resultImg').hidden=false;
+ $('resultPh').style.display='none';
+ $('uploadCutBtn').disabled=false;
+}
+
+function make600Image(source){
+ const sw0=source.width,sh0=source.height,DETECT_MAX=420;
+ const ds=Math.min(1,DETECT_MAX/Math.max(sw0,sh0));
+ const detect=document.createElement('canvas');
+ detect.width=Math.max(1,Math.round(sw0*ds));
+ detect.height=Math.max(1,Math.round(sh0*ds));
+
+ const dc=detect.getContext('2d',{willReadFrequently:true});
+ dc.drawImage(source,0,0,detect.width,detect.height);
+ const pixels=dc.getImageData(0,0,detect.width,detect.height).data;
+
+ let minX=detect.width,minY=detect.height,maxX=-1,maxY=-1;
+
+ for(let y=0;y<detect.height;y++)for(let x=0;x<detect.width;x++){
+  if(pixels[(y*detect.width+x)*4+3]>10){
+   if(x<minX)minX=x;if(x>maxX)maxX=x;
+   if(y<minY)minY=y;if(y>maxY)maxY=y;
+  }
+ }
+
+ if(maxX<0)throw new Error('找不到商品');
+
+ const pad=3;
+ const x1=Math.max(0,Math.floor(minX/ds)-pad);
+ const y1=Math.max(0,Math.floor(minY/ds)-pad);
+ const x2=Math.min(sw0,Math.ceil((maxX+1)/ds)+pad);
+ const y2=Math.min(sh0,Math.ceil((maxY+1)/ds)+pad);
+ const sw=x2-x1,sh=y2-y1;
+ const longSide=outputColor==='blue'?560:520;
+ const alignment=outputCentered?'center':outputColor;
+ const margin=alignment==='blue'?20:40;
+ const scale=longSide/Math.max(sw,sh);
+ const dw=Math.round(sw*scale),dh=Math.round(sh*scale);
+
+ const out=document.createElement('canvas');
+ out.width=600;out.height=600;
+ const c=out.getContext('2d');
+ c.imageSmoothingEnabled=true;
+ c.imageSmoothingQuality='high';
+
+ const dx=Math.round((600-dw)/2);
+ const dy=alignment==='center'?Math.round((600-dh)/2):600-margin-dh;
+ c.drawImage(source,x1,y1,sw,sh,dx,dy,dw,dh);
+
+ return out.toDataURL('image/png');
+}
+
+/* 圖片縮小 */
+async function resizeBlobIfNeeded(file,maxSide){
+ const img=await loadImageFromBlob(file);
+ const w=img.naturalWidth,h=img.naturalHeight;
+
+ if(Math.max(w,h)<=maxSide){
+  URL.revokeObjectURL(img._url);
+  return file;
+ }
+
+ const s=maxSide/Math.max(w,h);
+ const c=document.createElement('canvas');
+ c.width=Math.round(w*s);c.height=Math.round(h*s);
+ const x=c.getContext('2d');
+ x.imageSmoothingEnabled=true;
+ x.imageSmoothingQuality='high';
+ x.drawImage(img,0,0,c.width,c.height);
+ URL.revokeObjectURL(img._url);
+
+ return await canvasToBlob(c,'image/png',1);
+}
+
+function loadImageFromBlob(blob){
+ const url=URL.createObjectURL(blob);
+ return new Promise((resolve,reject)=>{
+  const img=new Image();
+  img._url=url;
+  img.onload=()=>resolve(img);
+  img.onerror=e=>{URL.revokeObjectURL(url);reject(e)};
+  img.src=url;
+ });
+}
+
+function canvasToBlob(c,type,quality){
+ return new Promise((resolve,reject)=>c.toBlob(
+  b=>b?resolve(b):reject(new Error('圖片轉換失敗')),type,quality
+ ));
+}
+
+/* 上傳 */
+
+
+async function upload(dataUrl){
+ if(!dataUrl)return;
+
+ if(!window.jiwuTools?.authenticated)return;
+ $('status').textContent='上傳中…';
+ $('result').style.display='none';
+
+ try{
+  const r=await window.jiwuTools.request('/upload',{dataUrl,fileName:$('name').value});
+
+  $('url').textContent=r.url;
+  $('result').style.display='block';
+
+  try{
+   await navigator.clipboard.writeText(r.url);
+   $('status').textContent='✅ 上傳完成，網址已複製';
+  }catch{
+   $('status').textContent='✅ 上傳完成';
+  }
+
+ }catch(e){
+  $('status').textContent='❌ '+e.message;
+ }
+}
+
+/* 重設 */
+function resetAll(){
+ panning=false;panStart=null;$('panBtn').classList.remove('active');
+ loadVersion++;autoBusy=false;resetBaseline=null;baselineIsCut=false;
+ editBox.style.pointerEvents="";
+ document.querySelectorAll(".tools input").forEach(el=>el.disabled=false);
+ cancelMove();
+ clearTimeout(finalTimer);
+
+ originalDataUrl=finalDataUrl='';
+ originalSource=removedSource=originalWork=null;
+ history=[];
+ drawing=pointerInside=false;
+ lastPoint=startPoint=currentPoint=startClient=currentClient=null;
+ zoomLevel=1;
+
+ hideSelection();
+
+ $('file').value='';
+ $('hint').hidden=false;
+ $('drop').classList.remove('drag');
+ $('originalImg').hidden=true;
+ $('resultImg').hidden=true;
+ stage.hidden=true;
+
+ $('originalPh').style.display='block';
+ $('editPh').style.display='flex';
+ $('resultPh').style.display='block';
+
+ $('originalPh').textContent='尚未載入圖片';
+ $('editPh').textContent='尚未去背';
+ $('resultPh').textContent='尚未產生成品';
+
+ [
+  'restoreBtn','eraseBtn','shapeCircleBtn','shapeBoxBtn','shapeWandBtn','shapeMoveBtn','shapeBrushMoveBtn','clearSelectionBtn',
+  'undoBtn','resetCutBtn','autoCutBtn','uploadCutBtn','uploadOriginalBtn','resetBtn',
+  'panBtn','zoomOutBtn','zoomResetBtn','zoomInBtn','bgCheckBtn'
+ ].forEach(id=>$(id).disabled=true);
+
+ $('zoomResetBtn').textContent='100%';
+ $('brushCursor').style.display='none';
+ $('result').style.display='none';
+ $('status').textContent='';
+}
+
+/* 複製 */
+function copyUrl(){
+ navigator.clipboard.writeText($('url').textContent)
+ .then(()=>$('status').textContent='✅ 網址已複製');
+}
+
+/* 工具 */
+function fileToDataUrl(f){
+ return new Promise((resolve,reject)=>{
+  const r=new FileReader();
+  r.onload=()=>resolve(r.result);
+  r.onerror=reject;
+  r.readAsDataURL(f);
+ });
+}
+
+function loadImage(src){
+ return new Promise((resolve,reject)=>{
+  const img=new Image();
+  img.onload=()=>resolve(img);
+  img.onerror=reject;
+  img.src=src;
+ });
+}
+
+window.addEventListener('resize',()=>originalWork&&applyZoom(false));
+
+</script>
+</body>
+</html>

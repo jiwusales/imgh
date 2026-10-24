@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<link rel="stylesheet" href="./shared.css"><script src="./shared.js" defer></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GitHub 圖床</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f5f5;margin:0;padding:30px;color:#333}
+.box{max-width:650px;margin:auto;background:#fff;padding:25px;border-radius:18px;box-shadow:0 3px 15px #0001}
+h2{margin-top:0}
+input{width:100%;padding:13px;margin-bottom:15px;border:1px solid #ccc;border-radius:10px;font-size:16px}
+.mode-title{margin:0 0 9px;font-size:15px;font-weight:700}
+.mode-list{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:15px}
+.mode-list button{margin:0;background:#eee;color:#333}
+.mode-list button.active{background:#333;color:#fff}
+.drop{height:300px;border:2px dashed #bbb;border-radius:15px;display:flex;align-items:center;justify-content:center;text-align:center;cursor:pointer;overflow:hidden}
+.drop.disabled{opacity:.55;cursor:not-allowed}
+.drop img{max-width:100%;max-height:100%;object-fit:contain}
+.status{text-align:center;margin-top:15px;min-height:24px}
+.result{display:none;margin-top:15px}
+.url{padding:12px;background:#f3f3f3;border-radius:10px;word-break:break-all}
+button{width:100%;padding:13px;margin-top:10px;border:0;border-radius:10px;background:#333;color:white;font-size:16px;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}
+.colors{display:none;margin-top:20px}
+.colors h3{margin:0 0 10px;font-size:16px}
+.palette{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.color{border:1px solid #ddd;border-radius:10px;overflow:hidden;cursor:pointer;background:#fff}
+.swatch{height:55px}
+.hex{text-align:center;padding:7px 2px;font-size:12px;font-weight:600}
+.modal{position:fixed;inset:0;z-index:10;background:#000b;display:none;align-items:center;justify-content:center;padding:18px}
+.modal.open{display:flex}
+.crop-dialog{width:min(820px,100%);max-height:calc(100vh - 36px);overflow:auto;background:#fff;border-radius:18px;padding:20px}
+.crop-dialog h3{margin:0 0 6px}
+.crop-help{margin:0 0 14px;color:#666;font-size:14px}
+.ratio-list{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.ratio-list button{width:auto;margin:0;padding:9px 14px;background:#eee;color:#333;font-size:14px}
+.ratio-list button.active{background:#333;color:#fff}
+.crop-stage{position:relative;width:100%;height:min(55vh,500px);background:#181818;overflow:hidden;border-radius:12px;touch-action:none;user-select:none}
+.crop-stage canvas{position:absolute;inset:0;width:100%;height:100%}
+.crop-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:4px}
+.crop-actions .secondary{background:#e7e7e7;color:#333}
+@media(max-width:560px){body{padding:12px}.box{padding:18px}.drop{height:260px}.crop-dialog{padding:14px}.crop-actions{grid-template-columns:1fr}.palette{grid-template-columns:repeat(5,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<header class="tool-header"><strong>JIWU 圖片工具</strong><nav aria-label="圖片工具"><a href="./index.html">圖床／裁切</a><a href="./remove.html">去背小幫手</a><a href="./history.html">已上傳圖片</a><button type="button" id="logout">登出</button></nav></header>
+<section class="tool-login" id="toolLogin"><form id="toolLoginForm"><h1>JIWU 圖片工具</h1><p>請使用後台密碼登入</p><input id="toolPassword" type="password" autocomplete="current-password" placeholder="後台密碼" required><button>登入</button><p id="toolLoginError" role="alert"></p></form></section>
+<div class="box">
+ <h2>GitHub 圖床</h2>
+ <input id="name" placeholder="輸入檔名／貨號（空白會自動命名）">
+ <p class="mode-title">1. 請先選擇上傳方式</p>
+ <div class="mode-list" id="modeList">
+  <button type="button" data-mode="original" class="active">不裁切</button>
+  <button type="button" data-mode="crop">要裁切</button>
+ </div>
+ <div class="drop" id="drop">
+  <div id="hint">已選擇「不裁切」<br><br>按 ⌘V 貼上、點此選取或拖曳圖片，將直接上傳</div>
+  <img id="preview" alt="圖片預覽" hidden>
+ </div>
+ <input id="file" type="file" accept="image/*" hidden>
+ <div class="colors" id="colors"><h3>圖片主要顏色</h3><div class="palette" id="palette"></div></div>
+ <div class="status" id="status"></div>
+ <div class="result" id="result"><div class="url" id="url"></div><button type="button" onclick="copyUrl()">複製圖片網址</button></div>
+</div>
+
+<div class="modal" id="cropModal" role="dialog" aria-modal="true" aria-labelledby="cropTitle">
+ <div class="crop-dialog">
+  <h3 id="cropTitle">上傳前確認圖片</h3>
+  <p class="crop-help">選擇比例後，拖曳框內可移動；拖曳四角可調整範圍。</p>
+  <div class="ratio-list" id="ratioList">
+   <button type="button" data-ratio="2.7" data-width="1080" data-height="400">1080×400</button>
+   <button type="button" data-ratio="0.8" data-width="1080" data-height="1350">1080×1350</button>
+   <button type="button" data-ratio="free">自由裁切</button>
+  </div>
+  <div class="center-scale"><label for="centerScale">從中心等比縮放 <output id="scaleValue">100%</output></label><input id="centerScale" type="range" min="10" max="200" value="100" step="1"><p>固定框的中心與比例；拖曳滑桿調整裁切範圍。</p></div>
+  <div class="crop-stage" id="cropStage"><canvas id="cropCanvas"></canvas></div>
+  <div class="crop-actions">
+   <button type="button" class="secondary" id="cancelCrop">取消</button>
+   <button type="button" class="secondary" id="uploadOriginal">不裁切，直接上傳</button>
+   <button type="button" id="confirmCrop">確認裁切並上傳</button>
+  </div>
+ </div>
+</div>
+
+<script>
+
+const drop=document.getElementById('drop'),file=document.getElementById('file'),
+preview=document.getElementById('preview'),hint=document.getElementById('hint'),
+statusEl=document.getElementById('status'),result=document.getElementById('result'),
+urlEl=document.getElementById('url'),colors=document.getElementById('colors'),
+palette=document.getElementById('palette'),cropModal=document.getElementById('cropModal'),
+cropStage=document.getElementById('cropStage'),cropCanvas=document.getElementById('cropCanvas'),
+cropCtx=cropCanvas.getContext('2d'),ratioList=document.getElementById('ratioList'),
+modeList=document.getElementById('modeList');
+
+let sourceData='',sourceImage=null,displayRect=null,cropRect=null,currentRatio=2.7,outputSize={width:1080,height:400};
+let pointerState=null,uploadMode='original';
+
+drop.onclick=()=>uploadMode?file.click():showModeReminder();
+file.onchange=()=>{if(file.files[0])handle(file.files[0]);file.value='';};
+document.addEventListener('paste',e=>{
+ const item=[...(e.clipboardData?.items||[])].find(x=>x.type.startsWith('image/'));
+ if(item){e.preventDefault();uploadMode?handle(item.getAsFile()):showModeReminder();}
+});
+drop.ondragover=e=>{e.preventDefault();drop.style.borderColor='#333';};
+drop.ondragleave=()=>drop.style.borderColor='#bbb';
+drop.ondrop=e=>{
+ e.preventDefault();drop.style.borderColor='#bbb';
+ const f=[...e.dataTransfer.files].find(x=>x.type.startsWith('image/'));
+ if(f){uploadMode?handle(f):showModeReminder();}
+};
+
+modeList.addEventListener('click',e=>{
+ const button=e.target.closest('button[data-mode]');if(!button)return;
+ uploadMode=button.dataset.mode;
+ modeList.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b===button));
+ drop.classList.remove('disabled');
+ hint.innerHTML=uploadMode==='crop'
+  ?'已選擇「要裁切」<br><br>按 ⌘V 貼上、點此選取或拖曳圖片'
+  :'已選擇「不裁切」<br><br>按 ⌘V 貼上、點此選取或拖曳圖片，將直接上傳';
+ statusEl.textContent=uploadMode==='crop'?'貼上圖片後可選擇裁切比例':'貼上圖片後會直接上傳原圖';
+});
+
+function showModeReminder(){statusEl.textContent='請先選擇「要裁切」或「不裁切」';}
+
+function handle(f){
+ if(!window.jiwuTools?.authenticated||window.jiwuTools.busy)return;
+ if(!f||!f.type.startsWith('image/'))return;
+ const r=new FileReader();
+ r.onload=()=>{
+  sourceData=r.result;
+  sourceImage=new Image();
+  sourceImage.onload=()=>{
+   preview.src=sourceData;preview.hidden=false;hint.hidden=true;
+   analyzeColors(sourceImage);
+   if(uploadMode==='crop')openCropper();else upload(sourceData);
+  };
+  sourceImage.onerror=()=>statusEl.textContent='❌ 無法讀取圖片';
+  sourceImage.src=sourceData;
+ };
+ r.readAsDataURL(f);
+}
+
+function openCropper(){
+ result.style.display='none';statusEl.textContent='請選擇是否裁切';
+ cropModal.classList.add('open');
+ selectRatio('2.7');
+ requestAnimationFrame(setupCropCanvas);
+}
+
+function setupCropCanvas(){
+ const dpr=window.devicePixelRatio||1,w=cropStage.clientWidth,h=cropStage.clientHeight;
+ cropCanvas.width=Math.round(w*dpr);cropCanvas.height=Math.round(h*dpr);
+ cropCtx.setTransform(dpr,0,0,dpr,0,0);
+ const scale=Math.min(w/sourceImage.naturalWidth,h/sourceImage.naturalHeight);
+ displayRect={x:(w-sourceImage.naturalWidth*scale)/2,y:(h-sourceImage.naturalHeight*scale)/2,w:sourceImage.naturalWidth*scale,h:sourceImage.naturalHeight*scale};
+ resetCropRect();drawCropper();
+}
+
+function selectRatio(ratio){
+ currentRatio=ratio==='free'?null:Number(ratio);
+ ratioList.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.ratio===String(ratio)));
+ const selected=ratioList.querySelector(`button[data-ratio="${ratio}"]`);
+ outputSize=selected?.dataset.width?{width:Number(selected.dataset.width),height:Number(selected.dataset.height)}:null;
+ if(displayRect){resetCropRect();drawCropper();}
+}
+ratioList.addEventListener('click',e=>{const b=e.target.closest('button[data-ratio]');if(b)selectRatio(b.dataset.ratio);});
+
+let scaleBase=null;
+function resetScaleBase(){scaleBase=cropRect?{...cropRect}:null;document.getElementById('centerScale').value=100;document.getElementById('scaleValue').textContent='100%';}
+document.getElementById('centerScale').addEventListener('input',e=>{
+ if(!scaleBase||!displayRect)return;
+ const cx=scaleBase.x+scaleBase.w/2,cy=scaleBase.y+scaleBase.h/2;
+ const max=Math.min(2*(cx-displayRect.x)/scaleBase.w,2*(displayRect.x+displayRect.w-cx)/scaleBase.w,2*(cy-displayRect.y)/scaleBase.h,2*(displayRect.y+displayRect.h-cy)/scaleBase.h);
+ const scale=Math.min(Number(e.target.value)/100,max);
+ cropRect={x:cx-scaleBase.w*scale/2,y:cy-scaleBase.h*scale/2,w:scaleBase.w*scale,h:scaleBase.h*scale};
+ document.getElementById('scaleValue').textContent=Math.round(scale*100)+'%';drawCropper();
+});
+function resetCropRect(){
+ const pad=Math.min(displayRect.w,displayRect.h)*.08;
+ let w=displayRect.w-pad*2,h=displayRect.h-pad*2;
+ if(currentRatio){
+  if(w/h>currentRatio)w=h*currentRatio;else h=w/currentRatio;
+ }
+ cropRect={x:displayRect.x+(displayRect.w-w)/2,y:displayRect.y+(displayRect.h-h)/2,w,h};resetScaleBase();
+}
+
+function drawCropper(){
+ const w=cropStage.clientWidth,h=cropStage.clientHeight;
+ cropCtx.clearRect(0,0,w,h);
+ cropCtx.drawImage(sourceImage,displayRect.x,displayRect.y,displayRect.w,displayRect.h);
+ cropCtx.save();cropCtx.fillStyle='#0009';cropCtx.fillRect(0,0,w,h);
+ cropCtx.clearRect(cropRect.x,cropRect.y,cropRect.w,cropRect.h);
+ cropCtx.drawImage(sourceImage,
+  (cropRect.x-displayRect.x)/displayRect.w*sourceImage.naturalWidth,
+  (cropRect.y-displayRect.y)/displayRect.h*sourceImage.naturalHeight,
+  cropRect.w/displayRect.w*sourceImage.naturalWidth,
+  cropRect.h/displayRect.h*sourceImage.naturalHeight,
+  cropRect.x,cropRect.y,cropRect.w,cropRect.h);
+ cropCtx.restore();
+ cropCtx.strokeStyle='#fff';cropCtx.lineWidth=2;cropCtx.strokeRect(cropRect.x,cropRect.y,cropRect.w,cropRect.h);
+ cropCtx.strokeStyle='#fff8';cropCtx.lineWidth=1;
+ for(let i=1;i<3;i++){
+  cropCtx.beginPath();cropCtx.moveTo(cropRect.x+cropRect.w*i/3,cropRect.y);cropCtx.lineTo(cropRect.x+cropRect.w*i/3,cropRect.y+cropRect.h);cropCtx.stroke();
+  cropCtx.beginPath();cropCtx.moveTo(cropRect.x,cropRect.y+cropRect.h*i/3);cropCtx.lineTo(cropRect.x+cropRect.w,cropRect.y+cropRect.h*i/3);cropCtx.stroke();
+ }
+ for(const [x,y] of corners()){
+  cropCtx.fillStyle='#fff';cropCtx.beginPath();cropCtx.arc(x,y,7,0,Math.PI*2);cropCtx.fill();
+ }
+}
+
+function corners(){return [[cropRect.x,cropRect.y],[cropRect.x+cropRect.w,cropRect.y],[cropRect.x,cropRect.y+cropRect.h],[cropRect.x+cropRect.w,cropRect.y+cropRect.h]];}
+function point(e){const r=cropCanvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+
+cropCanvas.addEventListener('pointerdown',e=>{
+ const p=point(e),near=corners().findIndex(([x,y])=>Math.hypot(p.x-x,p.y-y)<24);
+ const inside=p.x>=cropRect.x&&p.x<=cropRect.x+cropRect.w&&p.y>=cropRect.y&&p.y<=cropRect.y+cropRect.h;
+ if(near<0&&!inside)return;
+ cropCanvas.setPointerCapture(e.pointerId);
+ pointerState={mode:near>=0?'resize':'move',corner:near,start:p,rect:{...cropRect}};
+});
+
+cropCanvas.addEventListener('pointermove',e=>{
+ if(!pointerState)return;
+ const p=point(e),dx=p.x-pointerState.start.x,dy=p.y-pointerState.start.y,r=pointerState.rect,min=40;
+ if(pointerState.mode==='move'){
+  cropRect.x=clamp(r.x+dx,displayRect.x,displayRect.x+displayRect.w-r.w);
+  cropRect.y=clamp(r.y+dy,displayRect.y,displayRect.y+displayRect.h-r.h);
+ }else{
+  const right=pointerState.corner%2===1,bottom=pointerState.corner>1;
+  const anchorX=right?r.x:r.x+r.w,anchorY=bottom?r.y:r.y+r.h;
+  let w=Math.max(min,Math.abs(p.x-anchorX)),h=Math.max(min,Math.abs(p.y-anchorY));
+  if(currentRatio){
+   if(w/h>currentRatio)h=w/currentRatio;else w=h*currentRatio;
+  }
+  w=Math.min(w,right?displayRect.x+displayRect.w-anchorX:anchorX-displayRect.x);
+  h=currentRatio?w/currentRatio:Math.min(h,bottom?displayRect.y+displayRect.h-anchorY:anchorY-displayRect.y);
+  if(h>(bottom?displayRect.y+displayRect.h-anchorY:anchorY-displayRect.y)){h=bottom?displayRect.y+displayRect.h-anchorY:anchorY-displayRect.y;if(currentRatio)w=h*currentRatio;}
+  cropRect={x:right?anchorX:anchorX-w,y:bottom?anchorY:anchorY-h,w,h};
+ }
+ drawCropper();
+});
+['pointerup','pointercancel'].forEach(type=>cropCanvas.addEventListener(type,()=>{pointerState=null;resetScaleBase();}));
+window.addEventListener('resize',()=>{if(cropModal.classList.contains('open'))setupCropCanvas();});
+
+document.getElementById('cancelCrop').onclick=()=>{cropModal.classList.remove('open');statusEl.textContent='已取消上傳';};
+document.getElementById('uploadOriginal').onclick=()=>finishSelection(sourceData);
+document.getElementById('confirmCrop').onclick=()=>{
+ const scaleX=sourceImage.naturalWidth/displayRect.w,scaleY=sourceImage.naturalHeight/displayRect.h;
+ const sx=Math.round((cropRect.x-displayRect.x)*scaleX),sy=Math.round((cropRect.y-displayRect.y)*scaleY);
+ const sw=Math.max(1,Math.round(cropRect.w*scaleX)),sh=Math.max(1,Math.round(cropRect.h*scaleY));
+ const out=document.createElement('canvas');out.width=outputSize?.width||sw;out.height=outputSize?.height||sh;
+ out.getContext('2d').drawImage(sourceImage,sx,sy,sw,sh,0,0,out.width,out.height);
+ finishSelection(out.toDataURL('image/jpeg',.92));
+};
+
+function finishSelection(data){
+ cropModal.classList.remove('open');preview.src=data;preview.onload=()=>analyzeColors(preview);upload(data);
+}
+
+function analyzeColors(img){
+ const c=document.createElement('canvas'),ctx=c.getContext('2d');
+ const max=150,scale=Math.min(max/img.naturalWidth,max/img.naturalHeight,1);
+ c.width=Math.max(1,Math.round(img.naturalWidth*scale));c.height=Math.max(1,Math.round(img.naturalHeight*scale));
+ ctx.drawImage(img,0,0,c.width,c.height);
+ const data=ctx.getImageData(0,0,c.width,c.height).data,map={};
+ for(let i=0;i<data.length;i+=4){
+  if(data[i+3]<100)continue;
+  const r=Math.round(data[i]/24)*24,g=Math.round(data[i+1]/24)*24,b=Math.round(data[i+2]/24)*24;
+  if(isNearWhiteOrBlack(r,g,b))continue;
+  const key=`${Math.min(r,255)},${Math.min(g,255)},${Math.min(b,255)}`;map[key]=(map[key]||0)+1;
+ }
+ const list=Object.entries(map).sort((a,b)=>b[1]-a[1]).map(x=>x[0].split(',').map(Number)),picked=[];
+ for(const rgb of list){if(picked.every(x=>colorDistance(x,rgb)>55)){picked.push(rgb);if(picked.length===10)break;}}
+ palette.innerHTML='';
+ picked.forEach(rgb=>{
+  const hex=rgbToHex(...rgb),div=document.createElement('div');div.className='color';
+  div.innerHTML=`<div class="swatch" style="background:${hex}"></div><div class="hex">${hex}</div>`;
+  div.onclick=async()=>{await navigator.clipboard.writeText(hex);statusEl.textContent=`✅ 已複製 ${hex}`;};palette.appendChild(div);
+ });
+ colors.style.display=picked.length?'block':'none';
+}
+function isNearWhiteOrBlack(r,g,b){const avg=(r+g+b)/3;return avg>=235||avg<=20;}
+function colorDistance(a,b){return Math.sqrt((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2);}
+function rgbToHex(r,g,b){return '#'+[r,g,b].map(x=>Math.max(0,Math.min(255,x)).toString(16).padStart(2,'0')).join('').toUpperCase();}
+
+async function upload(data){
+ if(!window.jiwuTools?.authenticated)return;
+ statusEl.textContent='上傳中…';result.style.display='none';
+ try{
+  const res=await window.jiwuTools.request('/upload',{dataUrl:data,fileName:document.getElementById('name').value});
+  const r=res;
+  urlEl.textContent=r.url;result.style.display='block';
+  try{await navigator.clipboard.writeText(r.url);statusEl.textContent='✅ 上傳完成，網址已複製';}catch{statusEl.textContent='✅ 上傳完成';}
+ }catch(e){statusEl.textContent='❌ '+e.message;}
+}
+function copyUrl(){navigator.clipboard.writeText(urlEl.textContent);statusEl.textContent='✅ 網址已複製';}
+</script>
+</body>
+</html>
