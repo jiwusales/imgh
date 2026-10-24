@@ -3,6 +3,7 @@
 <head><script>try{const t=sessionStorage.getItem('jiwu_image_tools_session');if(t&&Number(t.split('.')[0])>Date.now())document.documentElement.classList.add('tools-restoring');}catch(_){}</script>
 <link rel="stylesheet" href="./shared.css?v=20261024-2"><script src="./shared.js?v=20261024-2" defer></script>
 <meta charset="UTF-8">
+<title>圖片去背｜JIWU</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 *{box-sizing:border-box}
@@ -115,6 +116,21 @@ button{touch-action:manipulation}
  #brushCursor{display:none!important}
 }
 
+@media(min-width:851px){
+ .box{padding:20px}
+ .workspace{height:calc(100dvh - 164px);min-height:420px;display:flex;flex-direction:column;gap:12px}
+ .workspace .drop{height:64px;flex-shrink:0}
+ .workspace .desktop-hint br{display:none}
+ .workspace .desktop-hint{margin-left:12px;font-size:14px;color:#666}
+ .workspace .preview{flex:1;min-height:0;margin:0;align-items:stretch}
+ .workspace .panel{height:100%;display:flex;flex-direction:column;min-height:0;padding:10px}
+ .workspace .title{flex-shrink:0;margin-bottom:8px}
+ .workspace .imgbox,.workspace #editBox{flex:1;height:auto;min-height:0;max-height:none}
+ .workspace .tools{flex-shrink:0;margin:0;padding:10px;gap:8px}
+ .workspace .tools button{padding:8px 11px}
+ .workspace .actions{flex-shrink:0;margin:0}
+ .workspace .actions button{padding:12px}
+}
 </style>
 </head>
 
@@ -127,9 +143,7 @@ button{touch-action:manipulation}
 
 <div class="box">
 
-<h2>去背小幫手</h2>
-
-<input id="name" placeholder="輸入檔名／貨號（空白會自動命名）">
+<div class="workspace">
 
 <div class="drop" id="drop">
  <div id="hint">點這裡選擇圖片<span class="desktop-hint"><br><br>或按 ⌘V 貼上／拖入圖片</span></div>
@@ -246,6 +260,7 @@ button{touch-action:manipulation}
  <button id="resetBtn" disabled>重選圖片</button>
 </div>
 
+</div><!-- workspace -->
 <div class="status" id="status"></div>
 
 <div class="note">
@@ -1052,7 +1067,7 @@ async function upload(dataUrl){
  $('result').style.display='none';
 
  try{
-  const r=await window.jiwuTools.request('/upload',{dataUrl,fileName:$('name').value});
+  const r=await window.jiwuTools.request('/upload',{dataUrl});
 
   $('url').textContent=r.url;
   $('result').style.display='block';
