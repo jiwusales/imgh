@@ -1,1 +1,19 @@
 [hidden]{display:none!important}body{padding-top:110px!important}.tool-header{position:fixed;inset:0 0 auto;background:#fff;z-index:9;padding:16px 24px;box-shadow:0 2px 12px #0001;display:flex;align-items:center;justify-content:space-between;gap:18px;font-family:-apple-system,sans-serif}.tool-header nav{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.tool-header a,.tool-header button{display:inline-block;width:auto;margin:0;padding:10px 15px;border:0;border-radius:10px;background:#edf0f4;color:#333;text-decoration:none;font-size:15px}.tool-header a[aria-current]{background:#53697f;color:white}.tool-login{position:fixed;inset:0;background:#f4f6f8;z-index:100;display:grid;place-items:center;padding:24px}.tool-login form{width:min(360px,100%);background:white;padding:28px;border-radius:18px;box-shadow:0 8px 35px #0001}.tool-login input,.tool-login button{width:100%;box-sizing:border-box;padding:14px;margin-top:12px;font-size:16px;border:1px solid #ccd3da;border-radius:10px}.tool-login button{background:#53697f;color:white;cursor:pointer}.tool-login p{line-height:1.6}.tool-login h1{font-size:23px}.tools-authenticated .tool-login{display:none}body:not(.tools-authenticated)>:not(.tool-login):not(script){visibility:hidden}.center-scale{margin:14px 0 18px;padding:14px;background:#f4f6f8;border-radius:12px}.center-scale label{display:flex;justify-content:space-between;gap:12px}.center-scale input{width:100%;margin:12px 0 0;padding:0}.center-scale p{font-size:13px;color:#666;margin:8px 0 0}@media(max-width:600px){body{padding-top:150px!important}.tool-header{padding:12px;display:block}.tool-header strong{display:block;margin-bottom:12px}.tool-header nav{gap:7px}.tool-header a,.tool-header button{font-size:13px;padding:10px}}
+/* Keep password form hidden during session restoration, starting in <head>. */
+html.tools-restoring .tool-login{display:none}
+html.tools-restoring body::after{content:'載入工具…';position:fixed;inset:0;display:grid;place-items:center;background:#f5f6f8;color:#667;z-index:99;font:16px -apple-system,sans-serif}
+body{padding-top:100px!important;padding-left:124px!important}
+.tool-header{height:72px;padding:16px 24px}
+.tool-header nav{position:fixed;left:24px;top:100px;display:flex;flex-direction:column;gap:14px;align-items:stretch}
+.tool-header nav a{width:72px;height:72px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:12px;line-height:1.55;text-align:center;font-size:16px;font-weight:600}
+.tool-header .mobile-label{display:none}
+.tool-header #logout{width:auto;margin:0;padding:10px 15px;background:#edf0f4;color:#333;font-size:14px}
+@media(max-width:600px){
+ body{padding-top:92px!important;padding-left:12px!important;padding-right:12px!important}
+ .tool-header{height:68px;display:flex;padding:10px 12px;gap:8px}
+ .tool-header strong{display:block;margin:0;white-space:nowrap;font-size:15px}
+ .tool-header nav{position:static;margin-left:auto;display:flex;flex-direction:row;flex-wrap:nowrap;gap:6px}
+ .tool-header nav a{width:auto;height:36px;min-width:36px;padding:0 8px;border-radius:8px;font-size:14px}
+ .tool-header .desktop-label{display:none}.tool-header .mobile-label{display:inline}
+ .tool-header #logout{padding:8px 6px;font-size:12px}
+}

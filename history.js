@@ -1,10 +1,13 @@
 const $=id=>document.getElementById(id);let page=1,version=0;
 const today=()=>{const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()),v=Object.fromEntries(parts.map(p=>[p.type,p.value]));return `${v.year}-${v.month}-${v.day}`;};
 $('date').value=today();
-async function load(){
+async function load(refresh=false){
  const current=++version;$('status').textContent='讀取中…';$('prev').disabled=$('next').disabled=true;
- try{const r=await window.jiwuTools.request('/history',{date:$('date').value,query:$('query').value,folder:$('folder').value,page});if(current!==version)return;
- $('gallery').replaceChildren();for(const item of r.items){const card=document.createElement('article');card.className='card';const a=document.createElement('button');a.type='button';a.className='image-copy';a.setAttribute('aria-label','複製 '+item.name+' 的圖片網址');const img=document.createElement('img');img.src=item.url;img.alt=item.name;img.loading='lazy';a.append(img);const p=document.createElement('p');p.textContent=item.name+'\n'+(item.date||'日期不明');const b=document.createElement('button');b.textContent='複製網址';b.onclick=async()=>{try{await navigator.clipboard.writeText(item.url);b.textContent='已複製';}catch{$('status').textContent='無法自動複製，請開啟圖片後複製網址';}};a.onclick=b.onclick;card.append(a,p,b);$('gallery').append(card);}
+ try{const r=await window.jiwuTools.request('/history',{date:$('date').value,query:$('query').value,folder:$('folder').value,page,refresh});if(current!==version)return;
+ $('gallery').replaceChildren();for(const item of r.items){const card=document.createElement('article');card.className='card';const a=document.createElement('button');a.type='button';a.className='image-copy';a.setAttribute('aria-label','複製 '+item.name+' 的圖片網址');const img=document.createElement('img');img.src=item.url;img.alt=item.name;img.loading='lazy';a.append(img);const p=document.createElement('p');p.textContent=item.name+'\n'+(item.date||'日期不明');const b=document.createElement('button');b.textContent='複製網址';b.onclick=async()=>{try{await navigator.clipboard.writeText(item.url);b.textContent='已複製';}catch{$('status').textContent='無法自動複製，請開啟圖片後複製網址';}};a.onclick=b.onclick;
+ const del=document.createElement('button');del.type='button';del.className='image-delete';del.textContent='×';del.title='刪除圖片';del.setAttribute('aria-label','刪除 '+item.name);
+ del.onclick=async e=>{e.stopPropagation();if(!confirm('確定刪除「'+item.name+'」？刪除後此圖片網址將無法繼續使用。'))return;del.disabled=true;try{await window.jiwuTools.request('/delete',{path:item.path,sha:item.sha});if(r.items.length===1&&page>1)page--;await load(true);}catch(e){$('status').textContent=e.message;del.disabled=false;}};
+ card.append(a,p,b,del);$('gallery').append(card);}
  $('status').textContent=r.total?`共 ${r.total} 張圖片`:'沒有符合條件的圖片';$('page').textContent=`${page} / ${Math.max(1,Math.ceil(r.total/40))}`;$('prev').disabled=page<=1;$('next').disabled=page*40>=r.total;
  }catch(e){if(current===version)$('status').textContent=e.message;}
 }

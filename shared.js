@@ -5,7 +5,7 @@ const AUTH='https://jiwu-mac-relay.jiwusales.workers.dev/functions/v1/jiwu-admin
 const KEY='jiwu_image_tools_session';
 let token=sessionStorage.getItem(KEY)||'',authenticated=false,busy=false;
 const login=document.getElementById('toolLogin'),error=document.getElementById('toolLoginError');
-function lock(message=''){authenticated=false;token='';sessionStorage.removeItem(KEY);document.body.classList.remove('tools-authenticated');error.textContent=message;}
+function lock(message=''){authenticated=false;token='';sessionStorage.removeItem(KEY);document.body.classList.remove('tools-authenticated');document.documentElement.classList.remove('tools-restoring');error.textContent=message;}
 async function admin(action,params={}){
  const res=await fetch(AUTH,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...params}),signal:AbortSignal.timeout(25000)});
  const data=await res.json();if(!res.ok||!data.ok)throw Error(data.error||'登入服務暫時無法使用');return data;
@@ -19,7 +19,7 @@ async function request(path,body){
  const data=await res.json();if(res.status===401)lock('登入已失效，請重新登入');if(!res.ok)throw Error(data.error||'操作失敗');return data;
  }finally{if(path==='/upload')busy=false;}
 }
-function unlock(){authenticated=true;document.body.classList.add('tools-authenticated');window.dispatchEvent(new Event('tools-ready'));}
+function unlock(){document.documentElement.classList.remove('tools-restoring');authenticated=true;document.body.classList.add('tools-authenticated');window.dispatchEvent(new Event('tools-ready'));}
 window.jiwuTools={request,get authenticated(){return authenticated},get busy(){return busy}};
 document.querySelectorAll('.tool-header a').forEach(a=>{if(new URL(a.href).pathname===location.pathname||(location.pathname.endsWith('/')&&a.pathname.endsWith('/index.html')))a.setAttribute('aria-current','page');});
 document.getElementById('logout').onclick=()=>lock();

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head>
-<link rel="stylesheet" href="./shared.css"><script src="./shared.js" defer></script>
+<head><script>try{const t=sessionStorage.getItem('jiwu_image_tools_session');if(t&&Number(t.split('.')[0])>Date.now())document.documentElement.classList.add('tools-restoring');}catch(_){}</script>
+<link rel="stylesheet" href="./shared.css?v=20261024-2"><script src="./shared.js?v=20261024-2" defer></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GitHub 圖床</title>
@@ -45,7 +45,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
-<header class="tool-header"><strong>JIWU 圖片工具</strong><nav aria-label="圖片工具"><a href="./index.html">圖床／裁切</a><a href="./remove.html">去背小幫手</a><a href="./history.html">已上傳圖片</a><button type="button" id="logout">登出</button></nav></header>
+<header class="tool-header"><strong>JIWU 圖片工具</strong><nav aria-label="圖片工具"><a href="./index.html" aria-label="圖片上傳"><span class="desktop-label">圖片<br>上傳</span><span class="mobile-label">上傳</span></a><a href="./remove.html" aria-label="圖片去背"><span class="desktop-label">圖片<br>去背</span><span class="mobile-label">去背</span></a><a href="./history.html" aria-label="圖片記錄"><span class="desktop-label">圖片<br>記錄</span><span class="mobile-label">記錄</span></a></nav><button type="button" id="logout">登出</button></header>
 <section class="tool-login" id="toolLogin"><form id="toolLoginForm"><h1>JIWU 圖片工具</h1><p>請使用後台密碼登入</p><input id="toolPassword" type="password" autocomplete="current-password" placeholder="後台密碼" required><button>登入</button><button type="button" id="reuseAdmin">沿用這台裝置的後台登入</button><p id="toolLoginError" role="alert"></p></form></section>
 <div class="box">
  <h2>GitHub 圖床</h2>
