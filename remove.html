@@ -117,15 +117,15 @@ button{touch-action:manipulation}
 }
 
 @media(min-width:851px){
- .box{padding:20px}
- .workspace{height:calc(100dvh - 164px);min-height:420px;display:flex;flex-direction:column;gap:12px}
+ .box{padding:20px;container-type:inline-size}
+ .workspace{height:auto;max-height:calc(100dvh - 164px);min-height:0;display:flex;flex-direction:column;gap:12px}
  .workspace .drop{height:64px;flex-shrink:0}
  .workspace .desktop-hint br{display:none}
  .workspace .desktop-hint{margin-left:12px;font-size:14px;color:#666}
- .workspace .preview{flex:1;min-height:0;margin:0;align-items:stretch}
- .workspace .panel{height:100%;display:flex;flex-direction:column;min-height:0;padding:10px}
+ .workspace .preview{flex:0 1 auto;height:calc((100cqw - 28px)/3 + 50px);min-height:0;margin:0;align-items:start;container-type:size}
+ .workspace .panel{height:auto;display:flex;flex-direction:column;min-height:0;padding:10px}
  .workspace .title{flex-shrink:0;margin-bottom:8px}
- .workspace .imgbox,.workspace #editBox{flex:1;height:auto;min-height:0;max-height:none}
+ .workspace .imgbox,.workspace #editBox{flex:none;width:min(100%,max(0px,calc(100cqh - 50px)));height:auto;aspect-ratio:1;min-height:0;max-height:none;align-self:center}
  .workspace .tools{flex-shrink:0;margin:0;padding:10px;gap:8px}
  .workspace .tools button{padding:8px 11px}
  .workspace .actions{flex-shrink:0;margin:0}
