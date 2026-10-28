@@ -1090,7 +1090,13 @@ async function upload(dataUrl){
  try{
   const r=await window.jiwuTools.request('/upload',{dataUrl,...(replaceTarget?{path:replaceTarget.path,sha:replaceTarget.sha}:{})});
 
-  if(replaceTarget)replaceTarget.sha=r.sha;
+  if(replaceTarget){
+   const updated={path:replaceTarget.path,sha:r.sha,name:replaceTarget.name,at:Date.now()};
+   try{localStorage.setItem('jiwu_image_updated',JSON.stringify(updated));}catch{}
+   sessionStorage.setItem('jiwu_image_return_updated',JSON.stringify(updated));
+   location.replace('./history.html?updated=1');
+   return;
+  }
   $('url').textContent=r.url;
   $('result').style.display='block';
 

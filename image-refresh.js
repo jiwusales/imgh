@@ -22,7 +22,8 @@
  }
  new MutationObserver(records=>{for(const r of records){if(r.type==='attributes')update(r.target);else for(const node of r.addedNodes)if(node.nodeType===1)update(node);}}).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['src']});
  async function refresh(force=false){
-  if(pending||(!force&&Date.now()-last<5000))return pending;
+  if(pending)return force?pending.then(()=>refresh(true)):pending;
+  if(!force&&Date.now()-last<5000)return;
   pending=(async()=>{
    const response=await fetch('https://img88.jiwusales.workers.dev/versions',{cache:'no-store'});if(!response.ok)throw Error('圖片版本讀取失敗');
    const data=await response.json();if(!data.versions||typeof data.versions!=='object')return;
@@ -33,6 +34,9 @@
  }
  window.jiwuRefreshImages=refresh;
  window.addEventListener('pageshow',()=>refresh(true));
+ window.addEventListener('storage',event=>{if(event.key==='jiwu_image_updated'&&event.newValue)refresh(true);});
+ window.addEventListener('focus',()=>refresh(true));
+ setInterval(()=>{if(document.visibilityState==='visible'&&document.getElementById('launchPaper'))refresh();},15000);
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refresh();});
  refresh(true);
 })();
