@@ -1,11 +1,11 @@
 (()=>{
  'use strict';
  if(window.jiwuImageURL)return;
- let versions={},pending=null,last=0;
+ let versions={},revision='main',pending=null,last=0;
  function imagePath(value){
   try{
    const u=new URL(value,location.href);let path='';
-   if(u.hostname==='raw.githubusercontent.com')path=u.pathname.replace(/^\/jiwusales\/imgh\/main\//,'');
+   if(u.hostname==='raw.githubusercontent.com')path=u.pathname.replace(/^\/jiwusales\/imgh\/(?:main|[a-f0-9]{40})\//,'');
    else if(u.hostname==='cdn.jsdelivr.net')path=u.pathname.replace(/^\/gh\/jiwusales\/imgh@main\//,'');
    else return '';
    path=decodeURIComponent(path);
@@ -14,7 +14,7 @@
  }
  window.jiwuImageURL=value=>{
   const path=imagePath(value),sha=versions[path];
-  return sha?'https://raw.githubusercontent.com/jiwusales/imgh/main/'+path.split('/').map(encodeURIComponent).join('/')+'?v='+sha:value;
+  return sha?'https://raw.githubusercontent.com/jiwusales/imgh/'+revision+'/'+path.split('/').map(encodeURIComponent).join('/')+'?v='+sha:value;
  };
  function update(root=document){
   const images=root instanceof HTMLImageElement?[root]:root.querySelectorAll?.('img[src]')||[];
@@ -27,7 +27,7 @@
   pending=(async()=>{
    const response=await fetch('https://img88.jiwusales.workers.dev/versions',{cache:'no-store'});if(!response.ok)throw Error('圖片版本讀取失敗');
    const data=await response.json();if(!data.versions||typeof data.versions!=='object')return;
-   const changed=JSON.stringify(versions)!==JSON.stringify(data.versions);versions=data.versions;last=Date.now();update();
+   const changed=JSON.stringify(versions)!==JSON.stringify(data.versions);versions=data.versions;revision=/^[a-f0-9]{40}$/.test(data.revision||'')?data.revision:'main';last=Date.now();update();
    if(changed)window.dispatchEvent(new Event('jiwu-images-updated'));
   })().catch(e=>console.warn(e.message)).finally(()=>pending=null);
   return pending;
