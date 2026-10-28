@@ -191,8 +191,8 @@ button{touch-action:manipulation}
 <div class="tools">
 
  <div class="tool-group">
-  <button id="restoreBtn" class="active" disabled>➕</button>
-  <button id="eraseBtn" disabled>➖</button>
+  <button id="restoreBtn" disabled>➕</button>
+  <button id="eraseBtn" class="active" disabled>➖</button>
  </div>
 
  <div class="tool-sep"></div>
@@ -294,7 +294,7 @@ const CUT_MODEL='small',CUT_MAX_SIDE=1600,EDIT_MAX_SIDE=1600,HISTORY_MAX=5;
 let replaceTarget=null;
 let originalDataUrl='',finalDataUrl='',originalSource=null,removedSource=null,originalWork=null;
 let panning=false,panStart=null;
-let mode='restore',shapeMode='circle',drawing=false,pointerInside=false;
+let mode='erase',shapeMode='circle',drawing=false,pointerInside=false;
 let lastPoint=null,startPoint=null,currentPoint=null,startClient=null,currentClient=null;
 let history=[],finalTimer=0,zoomLevel=1,bgDark=false;
 let moveSelection=null,moveDrag=null,moveSelecting=false;
