@@ -291,6 +291,7 @@ const editBox=$('editBox'),stage=$('canvasStage'),selectionRect=$('selectionRect
 
 const CUT_MODEL='small',CUT_MAX_SIDE=1600,EDIT_MAX_SIDE=1600,HISTORY_MAX=5;
 
+let replaceTarget=null;
 let originalDataUrl='',finalDataUrl='',originalSource=null,removedSource=null,originalWork=null;
 let panning=false,panStart=null;
 let mode='restore',shapeMode='circle',drawing=false,pointerInside=false;
@@ -448,11 +449,31 @@ function syncTolerance(){
  $('wandTolerance').value=v;
 }
 
+let handoffStarted=false;
+async function loadHistoryImage(){
+ if(handoffStarted||new URLSearchParams(location.search).get('edit')!=='history')return;
+ handoffStarted=true;
+ try{
+  const target=JSON.parse(sessionStorage.getItem('jiwu_image_edit')||'null');
+  if(!target?.path||!target?.sha)throw Error('請回圖片記錄重新選取圖片');
+  $('status').textContent='正在讀取記錄圖片…';
+  const source=await window.jiwuTools.request('/source',{path:target.path,sha:target.sha});
+  const blob=await (await fetch(source.dataUrl)).blob();
+  await handleFile(blob,target);
+  sessionStorage.removeItem('jiwu_image_edit');
+ }catch(e){$('status').textContent='❌ '+e.message;}
+}
+window.addEventListener('tools-ready',loadHistoryImage);
+if(window.jiwuTools?.authenticated)loadHistoryImage();
+
 /* 載入 */
-async function handleFile(f){
+async function handleFile(f,target=null){
  if(!window.jiwuTools?.authenticated||window.jiwuTools.busy)return;
  if(!f||!f.type.startsWith('image/'))return $('status').textContent='❌ 請選擇圖片檔';
  resetAll();
+ replaceTarget=target;
+ $('uploadCutBtn').textContent=target?'覆蓋原圖（去背結果）':'上傳去背圖';
+ $('uploadOriginalBtn').hidden=!!target;
  const version=loadVersion;
  $('hint').hidden=true;
  $('resetBtn').disabled=false;
@@ -472,7 +493,7 @@ async function handleFile(f){
   ['restoreBtn','eraseBtn','shapeCircleBtn','shapeBoxBtn','shapeWandBtn','shapeMoveBtn','shapeBrushMoveBtn','clearSelectionBtn','resetCutBtn','autoCutBtn',
    'panBtn','zoomOutBtn','zoomResetBtn','zoomInBtn','bgCheckBtn'].forEach(id=>$(id).disabled=false);
   applyZoom(true);updateFinal();
-  $('status').textContent='✅ 已載入圖片，可直接編輯；按「自動」才會去背';
+  $('status').textContent=target?'已載入「'+target.name+'」，按「自動」去背並修整後，按「覆蓋原圖」儲存。':'✅ 已載入圖片，可直接編輯；按「自動」才會去背';
  }catch(e){
   if(version!==loadVersion)return;
   console.error(e);
@@ -1067,16 +1088,17 @@ async function upload(dataUrl){
  $('result').style.display='none';
 
  try{
-  const r=await window.jiwuTools.request('/upload',{dataUrl});
+  const r=await window.jiwuTools.request('/upload',{dataUrl,...(replaceTarget?{path:replaceTarget.path,sha:replaceTarget.sha}:{})});
 
+  if(replaceTarget)replaceTarget.sha=r.sha;
   $('url').textContent=r.url;
   $('result').style.display='block';
 
   try{
    await navigator.clipboard.writeText(r.url);
-   $('status').textContent='✅ 上傳完成，網址已複製';
+   $('status').textContent=replaceTarget?'✅ 已覆蓋原圖，原網址已複製':'✅ 上傳完成，網址已複製';
   }catch{
-   $('status').textContent='✅ 上傳完成';
+   $('status').textContent=replaceTarget?'✅ 已覆蓋原圖':'✅ 上傳完成';
   }
 
  }catch(e){
@@ -1086,6 +1108,9 @@ async function upload(dataUrl){
 
 /* 重設 */
 function resetAll(){
+ replaceTarget=null;
+ $('uploadCutBtn').textContent='上傳去背圖';
+ $('uploadOriginalBtn').hidden=false;
  panning=false;panStart=null;$('panBtn').classList.remove('active');
  loadVersion++;autoBusy=false;resetBaseline=null;baselineIsCut=false;
  editBox.style.pointerEvents="";
