@@ -222,15 +222,15 @@ button{touch-action:manipulation}
 
  <div class="tool-group">
   <span class="tool-label">邊緣羽化</span>
-  <input id="featherPx" type="number" min="0" max="20" step="1" value="2">
+  <input id="featherPx" type="number" min="0" max="20" step="1" value="0">
   <span class="tool-label">px</span>
  </div>
  </div>
 
  <div class="tool-group" id="wandControls" style="display:none">
   <span class="tool-label">魔術棒容差</span>
-  <input id="wandTolerance" type="range" min="0" max="120" value="40">
-  <input id="wandToleranceNum" type="number" min="0" max="120" value="40">
+  <input id="wandTolerance" type="range" min="0" max="120" value="20">
+  <input id="wandToleranceNum" type="number" min="0" max="120" value="20">
  </div>
 
  <div class="tool-sep"></div>
@@ -266,7 +266,7 @@ button{touch-action:manipulation}
 <div class="note">
 貼上、選檔或拖入圖片後不會自動去背；按「自動」才會對目前編輯圖片去背。<br>
 ➕ 補回原圖　／　➖ 擦除背景<br>
-邊緣羽化預設 2px，套用於筆刷／框選修補與選取移動；設為 0 可使用硬邊。<br>
+邊緣羽化預設 0px，套用於筆刷／框選修補與選取移動；設為 0 可使用硬邊。<br>
 筆刷選取移動：塗出藍色選取範圍，再拖曳藍色範圍移動；可調整筆刷大小，按「取消選取」重新選取。<br>
 框選移動：拖出方框選取商品，再從框內拖曳移動；點框外可重新框選。Esc 取消選取／本次拖曳。<br>
 要排成 3／2／2，可直接把第二列的商品分批移到第三列。<br>
