@@ -132,6 +132,7 @@ button{touch-action:manipulation}
  .workspace .actions button{padding:12px}
 }
 .paste-tools{display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap}
+@media(max-width:850px){.paste-tools{margin-top:12px}}
 #pasteImageBtn{min-height:44px}
 #pasteTarget{flex:1;min-width:160px;min-height:44px;padding:12px;border:1px dashed #aaa;border-radius:10px;font-size:16px;user-select:text;-webkit-user-select:text}
 #pasteTarget:empty:before{content:attr(data-placeholder);color:#777;pointer-events:none}
@@ -164,7 +165,6 @@ button{touch-action:manipulation}
  <button id="tabEdit" class="active" role="tab" aria-selected="true" aria-controls="panelEdit">修補／移動</button>
  <button id="tabResult" role="tab" aria-selected="false" aria-controls="panelResult">成品</button>
 </div>
-<div class="mobile-help">用手指塗抹或框選；放大後按「移動畫布」拖曳查看。從畫布外滑動可捲動頁面。</div>
 <div class="preview">
 
  <div class="panel" id="panelOriginal">
