@@ -131,6 +131,10 @@ button{touch-action:manipulation}
  .workspace .actions{flex-shrink:0;margin:0}
  .workspace .actions button{padding:12px}
 }
+.paste-tools{display:flex;gap:8px;align-items:center;flex-shrink:0;flex-wrap:wrap}
+#pasteImageBtn{min-height:44px}
+#pasteTarget{flex:1;min-width:160px;min-height:44px;padding:12px;border:1px dashed #aaa;border-radius:10px;font-size:16px;user-select:text;-webkit-user-select:text}
+#pasteTarget:empty:before{content:attr(data-placeholder);color:#777;pointer-events:none}
 </style>
 </head>
 
@@ -149,6 +153,10 @@ button{touch-action:manipulation}
  <div id="hint">點這裡選擇圖片<span class="desktop-hint"><br><br>或按 ⌘V 貼上／拖入圖片</span></div>
 </div>
 
+<div class="paste-tools">
+ <button type="button" id="pasteImageBtn">貼上圖片</button>
+ <div id="pasteTarget" contenteditable="true" role="textbox" aria-label="長按貼上圖片" data-placeholder="或長按這裡 → 貼上" spellcheck="false"></div>
+</div>
 <input id="file" type="file" accept="image/*" hidden>
 
 <div class="mobile-tabs" role="tablist" aria-label="圖片預覽">
@@ -308,10 +316,37 @@ preload({model:CUT_MODEL}).catch(()=>{});
 $('drop').onclick=()=>$('file').click();
 $('file').onchange=()=>{const f=$('file').files[0];if(f)handleFile(f)};
 
+const pasteTarget=$('pasteTarget');
+function pasteFallback(message){
+ $('status').textContent=message;
+ pasteTarget.focus();
+}
+$('pasteImageBtn').onclick=async()=>{
+ if(!navigator.clipboard?.read){
+  pasteFallback('請長按旁邊的貼上區，再選「貼上」');return;
+ }
+ try{
+  const items=await navigator.clipboard.read();
+  for(const item of items){
+   const type=item.types.find(t=>t.startsWith('image/'));
+   if(type){await handleFile(await item.getType(type));return}
+  }
+  pasteFallback('剪貼簿沒有圖片，請先複製圖片本身，再貼上');
+ }catch{
+  pasteFallback('請允許貼上，或長按旁邊的貼上區選「貼上」');
+ }
+};
 document.addEventListener('paste',e=>{
- const item=[...e.clipboardData.items].find(x=>x.type.startsWith('image/'));
- if(item)handleFile(item.getAsFile());
+ const data=e.clipboardData;
+ const item=Array.from(data?.items||[]).find(x=>x.type.startsWith('image/'));
+ const file=item?.getAsFile()||Array.from(data?.files||[]).find(x=>x.type.startsWith('image/'));
+ if(file){
+  e.preventDefault();pasteTarget.textContent='';pasteTarget.blur();handleFile(file);
+ }else if(e.target===pasteTarget){
+  e.preventDefault();$('status').textContent='沒有收到圖片，請先複製圖片本身，再貼上';
+ }
 });
+pasteTarget.addEventListener('input',()=>{pasteTarget.textContent=''});
 
 ['dragenter','dragover'].forEach(t=>$('drop').addEventListener(t,e=>{
  e.preventDefault();e.stopPropagation();$('drop').classList.add('drag');
