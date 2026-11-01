@@ -1,0 +1,38 @@
+name: Recover stuck Pages deployment
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/recover-pages-20261101.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+jobs:
+  cancel-stuck-deployment:
+    if: github.run_number == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Cancel only the identified stale Pages deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          base='https://api.github.com/repos/'+os.environ['GH_REPO']+'/pages/deployments/0a5705a1e2adbafc02bb89af1b2821e11f230045'
+          headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}
+          try:
+              with urllib.request.urlopen(urllib.request.Request(base,headers=headers),timeout=30) as r:
+                  state=json.load(r)
+              print('Identified deployment status:',state.get('status'))
+          except urllib.error.HTTPError as e:
+              print('Status lookup HTTP',e.code)
+              if e.code!=404: raise
+          try:
+              with urllib.request.urlopen(urllib.request.Request(base+'/cancel',headers=headers,method='POST'),timeout=30) as r:
+                  print('Cancel request HTTP',r.status)
+          except urllib.error.HTTPError as e:
+              print('Cancellation HTTP',e.code)
+              if e.code not in (404,409,422): raise
+          PY
