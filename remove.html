@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="./shared.css?v=20261024-2"><script src="./shared.js?v=20261024-2" defer></script>
 <meta charset="UTF-8">
 <title>圖片去背｜JIWU</title>
-<meta name="jiwu-release" content="20261101-product-split">
+<meta name="jiwu-release" content="20261101-product-split-batch">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 *{box-sizing:border-box}
@@ -285,7 +285,7 @@ button{touch-action:manipulation}
 </div><!-- workspace -->
 <div class="status" id="status" aria-live="polite"></div>
 <section id="splitResults" class="split-results" hidden aria-label="拆分圖片">
- <div class="split-heading"><h3 id="splitTitle">拆分結果</h3><span id="splitSettings"></span><button id="mergeSplitBtn">合併勾選圖片</button></div>
+ <div class="split-heading"><h3 id="splitTitle">拆分結果</h3><span id="splitSettings"></span><button id="uploadAllSplitBtn">全部上傳</button><button id="mergeSplitBtn">合併勾選圖片</button></div>
  <p class="note">每張沿用上方紅／藍／中的設定。若吊環或配件被拆開，可勾選後合併；相連的商品請先在中間畫布擦開，再按拆成單張。</p>
  <div id="splitGrid" class="split-grid"></div>
 </section>
@@ -318,7 +318,7 @@ const editBox=$('editBox'),stage=$('canvasStage'),selectionRect=$('selectionRect
 
 const CUT_MODEL='small',CUT_MAX_SIDE=1600,EDIT_MAX_SIDE=1600,HISTORY_MAX=5;
 
-let splitPieces=[];
+let splitPieces=[],splitUploading=false;
 let replaceTarget=null;
 let originalDataUrl='',finalDataUrl='',originalSource=null,removedSource=null,originalWork=null;
 let panning=false,panStart=null;
@@ -397,6 +397,7 @@ $('undoBtn').onclick=undo;
 $('resetCutBtn').onclick=resetCut;
 $('autoCutBtn').onclick=autoCut;
 $('splitBtn').onclick=splitCurrent;
+$('uploadAllSplitBtn').onclick=()=>uploadSplitPieces(splitPieces);
 $('mergeSplitBtn').onclick=mergeSplitPieces;
 $('uploadCutBtn').onclick=()=>upload(finalDataUrl);
 $('uploadOriginalBtn').onclick=()=>upload(originalDataUrl);
@@ -409,6 +410,7 @@ function setOutputColor(color){
  outputColor=color;outputCentered=false;refreshOutputButtons();
 }
 function refreshOutputButtons(){
+ if(splitUploading)return;
  for(const [id,active] of [['outputRedBtn',outputColor==='red'],['outputBlueBtn',outputColor==='blue'],['outputCenterBtn',outputCentered]]){
   $(id).classList.toggle('active',active);$(id).setAttribute('aria-pressed',String(active));
  }
@@ -526,6 +528,7 @@ if(window.jiwuTools?.authenticated)loadHistoryImage();
 
 /* 載入 */
 async function handleFile(f,target=null){
+ if(splitUploading)return;
  clearSplitPieces();$('splitBtn').disabled=true;
  if(!window.jiwuTools?.authenticated||window.jiwuTools.busy)return;
  if(!f||!f.type.startsWith('image/'))return $('status').textContent='❌ 請選擇圖片檔';
@@ -562,7 +565,7 @@ async function handleFile(f,target=null){
 }
 
 async function autoCut(){
- if(!originalWork||autoBusy)return;
+ if(!originalWork||autoBusy||splitUploading)return;
  cancelMove();clearTimeout(finalTimer);
  const version=loadVersion;
  const input=cloneCanvas(canvas);
@@ -661,7 +664,7 @@ editBox.addEventListener('pointerleave',()=>{
 });
 
 editBox.addEventListener('pointerdown',e=>{
- if(!originalWork||autoBusy)return;
+ if(!originalWork||autoBusy||splitUploading)return;
  e.preventDefault();
  if(panning){panStart={x:e.clientX,y:e.clientY,left:editBox.scrollLeft,top:editBox.scrollTop};editBox.setPointerCapture?.(e.pointerId);return}
  clearTimeout(finalTimer);
@@ -1104,7 +1107,7 @@ function clearSplitPieces(){
  splitPieces=[];$('splitGrid').replaceChildren();$('splitResults').hidden=true;
 }
 function splitCurrent(){
- if(!originalWork||autoBusy)return;
+ if(!originalWork||autoBusy||splitUploading)return;
  cancelMove();clearTimeout(finalTimer);
  try{
   const w=canvas.width,h=canvas.height,pixels=ctx.getImageData(0,0,w,h),d=pixels.data;
@@ -1147,10 +1150,15 @@ function splitCurrent(){
   $('splitResults').scrollIntoView({behavior:'smooth',block:'nearest'});
  }catch(e){clearSplitPieces();$('status').textContent='❌ '+e.message}
 }
+function splitOutputKey(){return outputColor+':'+outputCentered}
+function splitUploadUrl(piece){return piece.uploads?.[splitOutputKey()]||''}
 function renderSplitPieces(){
  const grid=$('splitGrid');grid.replaceChildren();$('splitResults').hidden=!splitPieces.length;
  if(!splitPieces.length)return;
  $('splitTitle').textContent='拆分結果 · '+splitPieces.length+' 張';
+ const allUploaded=splitPieces.every(p=>splitUploadUrl(p));
+ $('uploadAllSplitBtn').disabled=splitUploading||allUploaded;
+ $('uploadAllSplitBtn').textContent=allUploaded?'全部已上傳':'全部上傳';
  $('splitSettings').textContent='600×600 · 長邊 '+(outputColor==='blue'?560:520)+'px · '+(outputCentered?'置中':outputColor==='blue'?'底部留 20px':'底部留 40px');
  splitPieces.forEach((piece,i)=>{
   const data=make600Image(piece.source),card=document.createElement('div');card.className='split-card';
@@ -1159,21 +1167,52 @@ function renderSplitPieces(){
   const img=document.createElement('img');img.src=data;img.alt='拆分第 '+(i+1)+' 張';
   const actions=document.createElement('div');actions.className='split-actions';
   const download=document.createElement('a');download.href=data;download.download='split-'+String(i+1).padStart(2,'0')+'.png';download.textContent='下載';
-  const button=document.createElement('button');button.textContent='上傳';
-  button.onclick=async()=>{
-   if(!window.jiwuTools?.authenticated)return;
-   button.disabled=true;button.textContent='上傳中…';
-   try{
-    const r=await window.jiwuTools.request('/upload',{dataUrl:data});
-    const link=document.createElement('a');link.href=r.url;link.target='_blank';link.rel='noopener';link.textContent='圖片網址';actions.append(link);
-    button.textContent='已上傳';$('status').textContent='✅ 第 '+(i+1)+' 張上傳完成';
-    try{await navigator.clipboard.writeText(r.url)}catch{}
-   }catch(e){button.disabled=false;button.textContent='重試上傳';$('status').textContent='❌ '+e.message}
-  };
+  const button=document.createElement('button');button.className='split-upload';
+  const url=splitUploadUrl(piece);
+  button.textContent=url?'已上傳':'上傳';button.disabled=splitUploading||!!url;
+  button.onclick=()=>uploadSplitPieces([piece]);
+  if(url){
+   const link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noopener';link.textContent='圖片網址';actions.append(link);
+  }
   actions.append(download,button);card.append(label,img,actions);grid.append(card);
  });
 }
+async function uploadSplitPieces(pieces){
+ if(splitUploading||!window.jiwuTools?.authenticated||window.jiwuTools.busy)return;
+ const key=splitOutputKey();
+ const pending=pieces.filter(p=>!p.uploads?.[key]).map(piece=>({piece,data:make600Image(piece.source),index:splitPieces.indexOf(piece)}));
+ if(!pending.length)return;
+ splitUploading=true;
+ const controls=[...document.querySelectorAll('.workspace button,.workspace input,#uploadAllSplitBtn,#mergeSplitBtn,.split-card button,.split-card input')];
+ const states=controls.map(el=>el.disabled),oldPointer=editBox.style.pointerEvents;
+ controls.forEach(el=>el.disabled=true);editBox.style.pointerEvents='none';
+ let success=0,failed=0;
+ try{
+  for(let n=0;n<pending.length;n++){
+   const item=pending[n],button=$('splitGrid').children[item.index]?.querySelector('.split-upload');
+   $('uploadAllSplitBtn').textContent='上傳中 '+(n+1)+'／'+pending.length;
+   $('status').textContent='正在上傳 '+(n+1)+'／'+pending.length+'（第 '+(item.index+1)+' 張）';
+   if(button)button.textContent='上傳中…';
+   try{
+    const result=await window.jiwuTools.request('/upload',{dataUrl:item.data});
+    if(!result.url)throw Error('上傳未回傳圖片網址');
+    item.piece.uploads??={};item.piece.uploads[key]=result.url;success++;
+    if(button)button.textContent='已上傳';
+   }catch(e){
+    failed++;if(button)button.textContent='重試上傳';
+    item.piece.uploadError=e.message;
+    if(!window.jiwuTools.authenticated)break;
+   }
+  }
+ }finally{
+  splitUploading=false;controls.forEach((el,i)=>el.disabled=states[i]);editBox.style.pointerEvents=oldPointer;
+  renderSplitPieces();
+  const remaining=pending.length-success;
+  $('status').textContent=remaining?'已上傳 '+success+' 張，尚有 '+remaining+' 張未完成；可再按「全部上傳」重試':'✅ 上傳完成，共 '+success+' 張';
+ }
+}
 function mergeSplitPieces(){
+ if(splitUploading)return;
  const selected=[...$('splitGrid').querySelectorAll('input:checked')].map(e=>Number(e.value));
  if(selected.length<2){$('status').textContent='請勾選至少兩張圖片再合併';return}
  const pieces=selected.map(i=>splitPieces[i]);
@@ -1260,6 +1299,7 @@ async function upload(dataUrl){
 
 /* 重設 */
 function resetAll(){
+ if(splitUploading)return;
  clearSplitPieces();$('splitBtn').disabled=true;
  replaceTarget=null;
  $('uploadCutBtn').textContent='上傳去背圖';
