@@ -136,6 +136,18 @@ button{touch-action:manipulation}
 #pasteImageBtn{min-height:44px}
 #pasteTarget{flex:1;min-width:160px;min-height:44px;padding:12px;border:1px dashed #aaa;border-radius:10px;font-size:16px;user-select:text;-webkit-user-select:text}
 #pasteTarget:empty:before{content:attr(data-placeholder);color:#777;pointer-events:none}
+
+.split-results{margin-top:16px}.split-results[hidden]{display:none}
+.split-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.split-card{border:1px solid #ddd;border-radius:12px;padding:10px;min-width:0}
+.split-card img{display:block;width:100%;aspect-ratio:1;background:#4a4a4a;border-radius:8px}
+.split-card .split-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.split-card button,.split-card a{font-size:14px;padding:9px;border-radius:8px}
+.split-card a{background:#eee;color:#333;text-decoration:none}
+.split-card input{width:18px;margin:8px 4px 8px 0}
+.split-heading{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.split-heading h3{margin:0}.split-heading span{font-size:13px;color:#666}
+@media(max-width:500px){.split-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 
@@ -257,6 +269,7 @@ button{touch-action:manipulation}
   <button id="undoBtn" disabled>↩ 復原</button>
   <button id="resetCutBtn" disabled>重設</button>
   <button id="autoCutBtn" disabled>自動</button>
+  <button id="splitBtn" disabled>拆成單張</button>
  </div>
 
 
@@ -269,7 +282,12 @@ button{touch-action:manipulation}
 </div>
 
 </div><!-- workspace -->
-<div class="status" id="status"></div>
+<div class="status" id="status" aria-live="polite"></div>
+<section id="splitResults" class="split-results" hidden aria-label="拆分圖片">
+ <div class="split-heading"><h3 id="splitTitle">拆分結果</h3><span id="splitSettings"></span><button id="mergeSplitBtn">合併勾選圖片</button></div>
+ <p class="note">每張沿用上方紅／藍／中的設定。若吊環或配件被拆開，可勾選後合併；相連的商品請先在中間畫布擦開，再按拆成單張。</p>
+ <div id="splitGrid" class="split-grid"></div>
+</section>
 
 <div class="note">
 貼上、選檔或拖入圖片後不會自動去背；按「自動」才會對目前編輯圖片去背。<br>
@@ -299,6 +317,7 @@ const editBox=$('editBox'),stage=$('canvasStage'),selectionRect=$('selectionRect
 
 const CUT_MODEL='small',CUT_MAX_SIDE=1600,EDIT_MAX_SIDE=1600,HISTORY_MAX=5;
 
+let splitPieces=[];
 let replaceTarget=null;
 let originalDataUrl='',finalDataUrl='',originalSource=null,removedSource=null,originalWork=null;
 let panning=false,panStart=null;
@@ -376,6 +395,8 @@ $('shapeMoveBtn').onclick=()=>setShapeMode('move');
 $('undoBtn').onclick=undo;
 $('resetCutBtn').onclick=resetCut;
 $('autoCutBtn').onclick=autoCut;
+$('splitBtn').onclick=splitCurrent;
+$('mergeSplitBtn').onclick=mergeSplitPieces;
 $('uploadCutBtn').onclick=()=>upload(finalDataUrl);
 $('uploadOriginalBtn').onclick=()=>upload(originalDataUrl);
 $('resetBtn').onclick=resetAll;
@@ -390,7 +411,8 @@ function refreshOutputButtons(){
  for(const [id,active] of [['outputRedBtn',outputColor==='red'],['outputBlueBtn',outputColor==='blue'],['outputCenterBtn',outputCentered]]){
   $(id).classList.toggle('active',active);$(id).setAttribute('aria-pressed',String(active));
  }
- if(originalWork)scheduleFinalUpdate(0);
+ if(originalWork){finalDataUrl=make600Image(canvas);$('resultImg').src=finalDataUrl;}
+ renderSplitPieces();
 }
 
 /* 手機預覽與畫布平移 */
@@ -503,6 +525,7 @@ if(window.jiwuTools?.authenticated)loadHistoryImage();
 
 /* 載入 */
 async function handleFile(f,target=null){
+ clearSplitPieces();$('splitBtn').disabled=true;
  if(!window.jiwuTools?.authenticated||window.jiwuTools.busy)return;
  if(!f||!f.type.startsWith('image/'))return $('status').textContent='❌ 請選擇圖片檔';
  resetAll();
@@ -1019,6 +1042,8 @@ function scheduleFinalUpdate(delay=60){
 }
 
 function updateFinal(){
+ clearSplitPieces();
+ $('splitBtn').disabled=false;
  finalDataUrl=make600Image(canvas);
  $('resultImg').src=finalDataUrl;
  $('resultImg').hidden=false;
@@ -1071,6 +1096,91 @@ function make600Image(source){
  c.drawImage(source,x1,y1,sw,sh,dx,dy,dw,dh);
 
  return out.toDataURL('image/png');
+}
+
+/* Split uses only the edit canvas alpha, never the grey preview background. */
+function clearSplitPieces(){
+ splitPieces=[];$('splitGrid').replaceChildren();$('splitResults').hidden=true;
+}
+function splitCurrent(){
+ if(!originalWork||autoBusy)return;
+ cancelMove();clearTimeout(finalTimer);
+ try{
+  const w=canvas.width,h=canvas.height,pixels=ctx.getImageData(0,0,w,h),d=pixels.data;
+  const labels=new Int32Array(w*h),queue=new Int32Array(w*h),parts=[];
+  for(let start=0;start<w*h;start++){
+   if(labels[start]||!d[start*4+3])continue;
+   const id=parts.length+1,part={id,count:0,x:w,y:h,x2:0,y2:0};
+   let head=0,tail=0;queue[tail++]=start;labels[start]=id;
+   while(head<tail){
+    const pos=queue[head++],x=pos%w,y=(pos/w)|0;
+    part.count++;part.x=Math.min(part.x,x);part.y=Math.min(part.y,y);part.x2=Math.max(part.x2,x);part.y2=Math.max(part.y2,y);
+    for(let yy=Math.max(0,y-1);yy<=Math.min(h-1,y+1);yy++)for(let xx=Math.max(0,x-1);xx<=Math.min(w-1,x+1);xx++){
+     const n=yy*w+xx;if(!labels[n]&&d[n*4+3]){labels[n]=id;queue[tail++]=n}
+    }
+   }
+   parts.push(part);
+  }
+  const largest=parts.reduce((n,p)=>Math.max(n,p.count),0),minimum=Math.max(24,largest*.015);
+  const main=parts.filter(p=>p.count>=minimum).map(p=>({...p,ids:new Set([p.id])}));
+  if(!main.length)throw new Error('找不到商品，請先完成去背');
+  // Attach nearby tiny fringe/loop fragments without joining two full products.
+  for(const p of parts.filter(p=>p.count<minimum)){
+   let nearest=null,distance=Infinity;
+   for(const m of main){const gap=Math.hypot(Math.max(0,m.x-p.x2,p.x-m.x2),Math.max(0,m.y-p.y2,p.y-m.y2));if(gap<distance){distance=gap;nearest=m}}
+   if(nearest&&distance<=10){nearest.ids.add(p.id);nearest.x=Math.min(nearest.x,p.x);nearest.y=Math.min(nearest.y,p.y);nearest.x2=Math.max(nearest.x2,p.x2);nearest.y2=Math.max(nearest.y2,p.y2)}
+  }
+  main.sort((a,b)=>a.y-b.y||a.x-b.x);
+  const rows=[];
+  for(const p of main){let row=rows.find(r=>Math.abs(r.y-p.y)<Math.min(r.height,p.y2-p.y+1)*.4);if(!row){row={y:p.y,height:p.y2-p.y+1,parts:[]};rows.push(row)}row.parts.push(p)}
+  splitPieces=rows.flatMap(r=>r.parts.sort((a,b)=>a.x-b.x)).map(p=>{
+   const c=document.createElement('canvas');c.width=p.x2-p.x+7;c.height=p.y2-p.y+7;
+   const pc=c.getContext('2d'),image=pc.createImageData(c.width,c.height);
+   for(let y=p.y;y<=p.y2;y++)for(let x=p.x;x<=p.x2;x++){
+    const index=y*w+x;if(!p.ids.has(labels[index]))continue;
+    image.data.set(d.subarray(index*4,index*4+4),((y-p.y+3)*c.width+x-p.x+3)*4);
+   }
+   pc.putImageData(image,0,0);return {source:c,x:p.x-3,y:p.y-3};
+  });
+  renderSplitPieces();$('status').textContent='✅ 已拆成 '+splitPieces.length+' 張，大小沿用紅／藍／中設定';
+  $('splitResults').scrollIntoView({behavior:'smooth',block:'nearest'});
+ }catch(e){clearSplitPieces();$('status').textContent='❌ '+e.message}
+}
+function renderSplitPieces(){
+ const grid=$('splitGrid');grid.replaceChildren();$('splitResults').hidden=!splitPieces.length;
+ if(!splitPieces.length)return;
+ $('splitTitle').textContent='拆分結果 · '+splitPieces.length+' 張';
+ $('splitSettings').textContent='600×600 · 長邊 '+(outputColor==='blue'?560:520)+'px · '+(outputCentered?'置中':outputColor==='blue'?'底部留 20px':'底部留 40px');
+ splitPieces.forEach((piece,i)=>{
+  const data=make600Image(piece.source),card=document.createElement('div');card.className='split-card';
+  const label=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.value=i;check.setAttribute('aria-label','勾選第 '+(i+1)+' 張');
+  label.append(check,document.createTextNode('第 '+(i+1)+' 張'));
+  const img=document.createElement('img');img.src=data;img.alt='拆分第 '+(i+1)+' 張';
+  const actions=document.createElement('div');actions.className='split-actions';
+  const download=document.createElement('a');download.href=data;download.download='split-'+String(i+1).padStart(2,'0')+'.png';download.textContent='下載';
+  const button=document.createElement('button');button.textContent='上傳';
+  button.onclick=async()=>{
+   if(!window.jiwuTools?.authenticated)return;
+   button.disabled=true;button.textContent='上傳中…';
+   try{
+    const r=await window.jiwuTools.request('/upload',{dataUrl:data});
+    const link=document.createElement('a');link.href=r.url;link.target='_blank';link.rel='noopener';link.textContent='圖片網址';actions.append(link);
+    button.textContent='已上傳';$('status').textContent='✅ 第 '+(i+1)+' 張上傳完成';
+    try{await navigator.clipboard.writeText(r.url)}catch{}
+   }catch(e){button.disabled=false;button.textContent='重試上傳';$('status').textContent='❌ '+e.message}
+  };
+  actions.append(download,button);card.append(label,img,actions);grid.append(card);
+ });
+}
+function mergeSplitPieces(){
+ const selected=[...$('splitGrid').querySelectorAll('input:checked')].map(e=>Number(e.value));
+ if(selected.length<2){$('status').textContent='請勾選至少兩張圖片再合併';return}
+ const pieces=selected.map(i=>splitPieces[i]);
+ const x=Math.min(...pieces.map(p=>p.x)),y=Math.min(...pieces.map(p=>p.y));
+ const c=document.createElement('canvas');c.width=Math.max(...pieces.map(p=>p.x+p.source.width))-x;c.height=Math.max(...pieces.map(p=>p.y+p.source.height))-y;
+ const cc=c.getContext('2d');pieces.forEach(p=>cc.drawImage(p.source,p.x-x,p.y-y));
+ splitPieces=splitPieces.flatMap((p,i)=>i===selected[0]?[{source:c,x,y}]:selected.includes(i)?[]:[p]);
+ renderSplitPieces();$('status').textContent='✅ 已合併勾選圖片';
 }
 
 /* 圖片縮小 */
@@ -1149,6 +1259,7 @@ async function upload(dataUrl){
 
 /* 重設 */
 function resetAll(){
+ clearSplitPieces();$('splitBtn').disabled=true;
  replaceTarget=null;
  $('uploadCutBtn').textContent='上傳去背圖';
  $('uploadOriginalBtn').hidden=false;
