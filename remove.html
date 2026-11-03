@@ -229,7 +229,7 @@ button{touch-action:manipulation}
   <span class="tool-divider" aria-hidden="true">｜</span>
   <button id="outputRedBtn" class="output-red active" aria-pressed="true" title="長邊 520px，對齊底部紅線 40px">紅</button>
   <button id="outputBlueBtn" class="output-blue" aria-pressed="false" title="長邊 560px，對齊底部藍線 20px">藍</button>
-  <button id="outputSmallBtn" aria-pressed="false" title="長邊 400px，水平置中、底部留 25px（參考圖二）">小</button>
+  <button id="outputSmallBtn" aria-pressed="false" title="長邊 400px，水平置中、底部留 40px（參考圖二）">小</button>
   <button id="outputCenterBtn" aria-pressed="false" title="置中／回到對應底線">中</button>
  </div>
 
@@ -299,7 +299,7 @@ button{touch-action:manipulation}
 框選移動：拖出方框選取商品，再從框內拖曳移動；點框外可重新框選。Esc 取消選取／本次拖曳。<br>
 要排成 3／2／2，可直接把第二列的商品分批移到第三列。<br>
 深灰底只供檢查去背，不會加進輸出圖片。<br>
-成品固定 600×600；「紅」：長邊 520px、對齊底部紅線（40px）；「藍」：長邊 560px、對齊底部藍線（20px）；「小」：長邊 400px、水平置中、底部留 25px；「中」切換置中。預設紅。
+成品固定 600×600；「紅」：長邊 520px、對齊底部紅線（40px）；「藍」：長邊 560px、對齊底部藍線（20px）；「小」：長邊 400px、水平置中、底部留 40px；「中」切換置中。預設紅。
 </div>
 
 <div class="result" id="result">
@@ -1087,7 +1087,7 @@ function make600Image(source){
  const sw=x2-x1,sh=y2-y1;
  const longSide=outputColor==='small'?400:outputColor==='blue'?560:520;
  const alignment=outputCentered?'center':outputColor;
- const margin=outputColor==='small'?25:outputColor==='blue'?20:40;
+ const margin=outputColor==='small'?40:outputColor==='blue'?20:40;
  const scale=longSide/Math.max(sw,sh);
  const dw=Math.round(sw*scale),dh=Math.round(sh*scale);
 
@@ -1161,7 +1161,7 @@ function renderSplitPieces(){
  const allUploaded=splitPieces.every(p=>splitUploadUrl(p));
  $('uploadAllSplitBtn').disabled=splitUploading||allUploaded;
  $('uploadAllSplitBtn').textContent=allUploaded?'全部已上傳':'全部上傳';
- $('splitSettings').textContent='600×600 · 長邊 '+(outputColor==='small'?400:outputColor==='blue'?560:520)+'px · '+(outputCentered?'置中':outputColor==='small'?'底部留 25px':outputColor==='blue'?'底部留 20px':'底部留 40px');
+ $('splitSettings').textContent='600×600 · 長邊 '+(outputColor==='small'?400:outputColor==='blue'?560:520)+'px · '+(outputCentered?'置中':outputColor==='small'?'底部留 40px':outputColor==='blue'?'底部留 20px':'底部留 40px');
  splitPieces.forEach((piece,i)=>{
   const data=make600Image(piece.source),card=document.createElement('div');card.className='split-card';
   const label=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.value=i;check.setAttribute('aria-label','勾選第 '+(i+1)+' 張');
