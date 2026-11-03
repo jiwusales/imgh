@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="./shared.css?v=20261024-2"><script src="./shared.js?v=20261024-2" defer></script>
 <meta charset="UTF-8">
 <title>圖片去背｜JIWU</title>
-<meta name="jiwu-release" content="20261101-product-split-batch">
+<meta name="jiwu-release" content="20261103-small-bottom-preset">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 *{box-sizing:border-box}
@@ -229,6 +229,7 @@ button{touch-action:manipulation}
   <span class="tool-divider" aria-hidden="true">｜</span>
   <button id="outputRedBtn" class="output-red active" aria-pressed="true" title="長邊 520px，對齊底部紅線 40px">紅</button>
   <button id="outputBlueBtn" class="output-blue" aria-pressed="false" title="長邊 560px，對齊底部藍線 20px">藍</button>
+  <button id="outputSmallBtn" aria-pressed="false" title="長邊 400px，水平置中、底部留 25px（參考圖二）">小</button>
   <button id="outputCenterBtn" aria-pressed="false" title="置中／回到對應底線">中</button>
  </div>
 
@@ -286,7 +287,7 @@ button{touch-action:manipulation}
 <div class="status" id="status" aria-live="polite"></div>
 <section id="splitResults" class="split-results" hidden aria-label="拆分圖片">
  <div class="split-heading"><h3 id="splitTitle">拆分結果</h3><span id="splitSettings"></span><button id="uploadAllSplitBtn">全部上傳</button><button id="mergeSplitBtn">合併勾選圖片</button></div>
- <p class="note">每張沿用上方紅／藍／中的設定。若吊環或配件被拆開，可勾選後合併；相連的商品請先在中間畫布擦開，再按拆成單張。</p>
+ <p class="note">每張沿用上方紅／藍／小／中的設定。若吊環或配件被拆開，可勾選後合併；相連的商品請先在中間畫布擦開，再按拆成單張。</p>
  <div id="splitGrid" class="split-grid"></div>
 </section>
 
@@ -298,7 +299,7 @@ button{touch-action:manipulation}
 框選移動：拖出方框選取商品，再從框內拖曳移動；點框外可重新框選。Esc 取消選取／本次拖曳。<br>
 要排成 3／2／2，可直接把第二列的商品分批移到第三列。<br>
 深灰底只供檢查去背，不會加進輸出圖片。<br>
-成品固定 600×600；「紅」：長邊 520px、對齊底部紅線（40px）；「藍」：長邊 560px、對齊底部藍線（20px）；「中」切換置中。預設紅。
+成品固定 600×600；「紅」：長邊 520px、對齊底部紅線（40px）；「藍」：長邊 560px、對齊底部藍線（20px）；「小」：長邊 400px、水平置中、底部留 25px；「中」切換置中。預設紅。
 </div>
 
 <div class="result" id="result">
@@ -405,13 +406,14 @@ $('resetBtn').onclick=resetAll;
 $('copyBtn').onclick=copyUrl;
 $('outputRedBtn').onclick=()=>setOutputColor('red');
 $('outputBlueBtn').onclick=()=>setOutputColor('blue');
+$('outputSmallBtn').onclick=()=>setOutputColor('small');
 $('outputCenterBtn').onclick=()=>{outputCentered=!outputCentered;refreshOutputButtons()};
 function setOutputColor(color){
  outputColor=color;outputCentered=false;refreshOutputButtons();
 }
 function refreshOutputButtons(){
  if(splitUploading)return;
- for(const [id,active] of [['outputRedBtn',outputColor==='red'],['outputBlueBtn',outputColor==='blue'],['outputCenterBtn',outputCentered]]){
+ for(const [id,active] of [['outputRedBtn',outputColor==='red'],['outputBlueBtn',outputColor==='blue'],['outputSmallBtn',outputColor==='small'],['outputCenterBtn',outputCentered]]){
   $(id).classList.toggle('active',active);$(id).setAttribute('aria-pressed',String(active));
  }
  if(originalWork){finalDataUrl=make600Image(canvas);$('resultImg').src=finalDataUrl;}
@@ -1083,9 +1085,9 @@ function make600Image(source){
  const x2=Math.min(sw0,Math.ceil((maxX+1)/ds)+pad);
  const y2=Math.min(sh0,Math.ceil((maxY+1)/ds)+pad);
  const sw=x2-x1,sh=y2-y1;
- const longSide=outputColor==='blue'?560:520;
+ const longSide=outputColor==='small'?400:outputColor==='blue'?560:520;
  const alignment=outputCentered?'center':outputColor;
- const margin=alignment==='blue'?20:40;
+ const margin=outputColor==='small'?25:outputColor==='blue'?20:40;
  const scale=longSide/Math.max(sw,sh);
  const dw=Math.round(sw*scale),dh=Math.round(sh*scale);
 
@@ -1146,7 +1148,7 @@ function splitCurrent(){
    }
    pc.putImageData(image,0,0);return {source:c,x:p.x-3,y:p.y-3};
   });
-  renderSplitPieces();$('status').textContent='✅ 已拆成 '+splitPieces.length+' 張，大小沿用紅／藍／中設定';
+  renderSplitPieces();$('status').textContent='✅ 已拆成 '+splitPieces.length+' 張，大小沿用紅／藍／小／中設定';
   $('splitResults').scrollIntoView({behavior:'smooth',block:'nearest'});
  }catch(e){clearSplitPieces();$('status').textContent='❌ '+e.message}
 }
@@ -1159,7 +1161,7 @@ function renderSplitPieces(){
  const allUploaded=splitPieces.every(p=>splitUploadUrl(p));
  $('uploadAllSplitBtn').disabled=splitUploading||allUploaded;
  $('uploadAllSplitBtn').textContent=allUploaded?'全部已上傳':'全部上傳';
- $('splitSettings').textContent='600×600 · 長邊 '+(outputColor==='blue'?560:520)+'px · '+(outputCentered?'置中':outputColor==='blue'?'底部留 20px':'底部留 40px');
+ $('splitSettings').textContent='600×600 · 長邊 '+(outputColor==='small'?400:outputColor==='blue'?560:520)+'px · '+(outputCentered?'置中':outputColor==='small'?'底部留 25px':outputColor==='blue'?'底部留 20px':'底部留 40px');
  splitPieces.forEach((piece,i)=>{
   const data=make600Image(piece.source),card=document.createElement('div');card.className='split-card';
   const label=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.value=i;check.setAttribute('aria-label','勾選第 '+(i+1)+' 張');
