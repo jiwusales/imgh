@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="./shared.css?v=20261024-2"><script src="./shared.js?v=20261024-2" defer></script>
 <meta charset="UTF-8">
 <title>圖片去背｜JIWU</title>
-<meta name="jiwu-release" content="20261103-small-bottom-preset">
+<meta name="jiwu-release" content="20261117-split-alpha-fix">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 *{box-sizing:border-box}
@@ -329,6 +329,7 @@ const canvas=$('editCanvas'),ctx=canvas.getContext('2d',{alpha:true});
 const editBox=$('editBox'),stage=$('canvasStage'),selectionRect=$('selectionRect');
 
 const CUT_MODEL='small',CUT_MAX_SIDE=1600,EDIT_MAX_SIDE=1600,HISTORY_MAX=5;
+const VISIBLE_ALPHA=10;
 
 let splitPieces=[],splitUploading=false;
 let replaceTarget=null;
@@ -1069,20 +1070,13 @@ function updateFinal(){
 }
 
 function make600Image(source){
- const sw0=source.width,sh0=source.height,DETECT_MAX=420;
- const ds=Math.min(1,DETECT_MAX/Math.max(sw0,sh0));
- const detect=document.createElement('canvas');
- detect.width=Math.max(1,Math.round(sw0*ds));
- detect.height=Math.max(1,Math.round(sh0*ds));
+ // Inspect source pixels so downsampling cannot erase faint, thin details.
+ const sw0=source.width,sh0=source.height;
+ const pixels=source.getContext('2d').getImageData(0,0,sw0,sh0).data;
+ let minX=sw0,minY=sh0,maxX=-1,maxY=-1;
 
- const dc=detect.getContext('2d',{willReadFrequently:true});
- dc.drawImage(source,0,0,detect.width,detect.height);
- const pixels=dc.getImageData(0,0,detect.width,detect.height).data;
-
- let minX=detect.width,minY=detect.height,maxX=-1,maxY=-1;
-
- for(let y=0;y<detect.height;y++)for(let x=0;x<detect.width;x++){
-  if(pixels[(y*detect.width+x)*4+3]>10){
+ for(let y=0;y<sh0;y++)for(let x=0;x<sw0;x++){
+  if(pixels[(y*sw0+x)*4+3]>VISIBLE_ALPHA){
    if(x<minX)minX=x;if(x>maxX)maxX=x;
    if(y<minY)minY=y;if(y>maxY)maxY=y;
   }
@@ -1091,10 +1085,10 @@ function make600Image(source){
  if(maxX<0)throw new Error('找不到商品');
 
  const pad=3;
- const x1=Math.max(0,Math.floor(minX/ds)-pad);
- const y1=Math.max(0,Math.floor(minY/ds)-pad);
- const x2=Math.min(sw0,Math.ceil((maxX+1)/ds)+pad);
- const y2=Math.min(sh0,Math.ceil((maxY+1)/ds)+pad);
+ const x1=Math.max(0,minX-pad);
+ const y1=Math.max(0,minY-pad);
+ const x2=Math.min(sw0,maxX+1+pad);
+ const y2=Math.min(sh0,maxY+1+pad);
  const sw=x2-x1,sh=y2-y1;
  const longSide=outputColor==='small'?400:outputColor==='blue'?560:520;
  const alignment=outputCentered?'center':outputColor;
@@ -1126,14 +1120,14 @@ function splitCurrent(){
   const w=canvas.width,h=canvas.height,pixels=ctx.getImageData(0,0,w,h),d=pixels.data;
   const labels=new Int32Array(w*h),queue=new Int32Array(w*h),parts=[];
   for(let start=0;start<w*h;start++){
-   if(labels[start]||!d[start*4+3])continue;
+   if(labels[start]||d[start*4+3]<=VISIBLE_ALPHA)continue;
    const id=parts.length+1,part={id,count:0,x:w,y:h,x2:0,y2:0};
    let head=0,tail=0;queue[tail++]=start;labels[start]=id;
    while(head<tail){
     const pos=queue[head++],x=pos%w,y=(pos/w)|0;
     part.count++;part.x=Math.min(part.x,x);part.y=Math.min(part.y,y);part.x2=Math.max(part.x2,x);part.y2=Math.max(part.y2,y);
     for(let yy=Math.max(0,y-1);yy<=Math.min(h-1,y+1);yy++)for(let xx=Math.max(0,x-1);xx<=Math.min(w-1,x+1);xx++){
-     const n=yy*w+xx;if(!labels[n]&&d[n*4+3]){labels[n]=id;queue[tail++]=n}
+     const n=yy*w+xx;if(!labels[n]&&d[n*4+3]>VISIBLE_ALPHA){labels[n]=id;queue[tail++]=n}
     }
    }
    parts.push(part);
@@ -1146,6 +1140,23 @@ function splitCurrent(){
    let nearest=null,distance=Infinity;
    for(const m of main){const gap=Math.hypot(Math.max(0,m.x-p.x2,p.x-m.x2),Math.max(0,m.y-p.y2,p.y-m.y2));if(gap<distance){distance=gap;nearest=m}}
    if(nearest&&distance<=10){nearest.ids.add(p.id);nearest.x=Math.min(nearest.x,p.x);nearest.y=Math.min(nearest.y,p.y);nearest.x2=Math.max(nearest.x2,p.x2);nearest.y2=Math.max(nearest.y2,p.y2)}
+  }
+  // Retain up to 3px of soft edges, without letting faint residue join products.
+  const owners=new Array(parts.length+1);
+  for(const p of main)for(const id of p.ids)owners[id]=p;
+  let head=0,tail=0;
+  for(let pos=0;pos<w*h;pos++)if(owners[labels[pos]])queue[tail++]=pos;
+  for(let edge=0;edge<3&&head<tail;edge++){
+   const end=tail;
+   while(head<end){
+    const pos=queue[head++],id=labels[pos],p=owners[id],x=pos%w,y=(pos/w)|0;
+    for(let yy=Math.max(0,y-1);yy<=Math.min(h-1,y+1);yy++)for(let xx=Math.max(0,x-1);xx<=Math.min(w-1,x+1);xx++){
+     const n=yy*w+xx,alpha=d[n*4+3];
+     if(labels[n]||!alpha||alpha>VISIBLE_ALPHA)continue;
+     labels[n]=id;queue[tail++]=n;
+     p.x=Math.min(p.x,xx);p.y=Math.min(p.y,yy);p.x2=Math.max(p.x2,xx);p.y2=Math.max(p.y2,yy);
+    }
+   }
   }
   main.sort((a,b)=>a.y-b.y||a.x-b.x);
   const rows=[];
@@ -1390,3 +1401,4 @@ window.addEventListener('resize',()=>originalWork&&applyZoom(false));
 </script>
 </body>
 </html>
+
