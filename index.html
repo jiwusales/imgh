@@ -8,6 +8,7 @@
 <script>try{const t=sessionStorage.getItem('jiwu_image_tools_session');if(t&&Number(t.split('.')[0])>Date.now())document.documentElement.classList.add('tools-restoring');}catch(_){}</script>
 <link rel="stylesheet" href="./shared.css?v=20261024-2"><script src="./shared.js?v=20261024-2" defer></script>
 <meta charset="UTF-8">
+<meta name="jiwu-release" content="20261117-crop-original-resolution">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GitHub 圖床</title>
 <style>
@@ -42,6 +43,10 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .ratio-list{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
 .ratio-list button{width:auto;margin:0;padding:9px 14px;background:#eee;color:#333;font-size:14px}
 .ratio-list button.active{background:#333;color:#fff}
+.crop-output{margin-bottom:14px}.crop-output label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
+.crop-output select{max-width:100%;width:100%;padding:10px;border:1px solid #ccc;border-radius:10px;background:#fff;color:#333;font-size:16px}
+.crop-output p{margin:6px 0 0;font-size:13px;line-height:1.5;color:#666}
+#cropError{color:#b42318}
 .crop-stage{position:relative;width:100%;height:min(55vh,500px);background:#181818;overflow:hidden;border-radius:12px;touch-action:none;user-select:none}
 .crop-stage canvas{position:absolute;inset:0;width:100%;height:100%}
 .crop-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:4px}
@@ -75,9 +80,15 @@ button:disabled{opacity:.5;cursor:not-allowed}
   <h3 id="cropTitle">上傳前確認圖片</h3>
   <p class="crop-help">選擇比例後，拖曳框內可移動；拖曳四角可調整範圍。</p>
   <div class="ratio-list" id="ratioList">
-   <button type="button" data-ratio="2.7" data-width="1080" data-height="400">1080×400</button>
-   <button type="button" data-ratio="0.8" data-width="1080" data-height="1350">1080×1350</button>
+   <button type="button" data-ratio="2.7" data-width="1080" data-height="400">1080×400 比例</button>
+   <button type="button" data-ratio="0.8" data-width="1080" data-height="1350">1080×1350 比例</button>
    <button type="button" data-ratio="free">自由裁切</button>
+  </div>
+  <div class="crop-output">
+   <label for="cropResolution">輸出尺寸</label>
+   <select id="cropResolution"><option value="original">保留原圖解析度（建議）</option><option value="fixed" id="fixedCropSize">固定尺寸：1080×400</option></select>
+   <p id="cropOutputInfo" aria-live="polite"></p>
+   <p id="cropError" role="alert" hidden></p>
   </div>
   <div class="center-scale"><label for="centerScale">從中心等比縮放 <output id="scaleValue">100%</output></label><input id="centerScale" type="range" min="10" max="200" value="100" step="1"><p>固定框的中心與比例；拖曳滑桿調整裁切範圍。</p></div>
   <div class="crop-stage" id="cropStage"><canvas id="cropCanvas"></canvas></div>
@@ -99,6 +110,8 @@ palette=document.getElementById('palette'),cropModal=document.getElementById('cr
 cropStage=document.getElementById('cropStage'),cropCanvas=document.getElementById('cropCanvas'),
 cropCtx=cropCanvas.getContext('2d'),ratioList=document.getElementById('ratioList'),
 modeList=document.getElementById('modeList');
+const cropResolution=document.getElementById('cropResolution'),cropError=document.getElementById('cropError');
+const MAX_UPLOAD_BYTES=10*1024*1024;
 
 let sourceData='',sourceImage=null,displayRect=null,cropRect=null,currentRatio=2.7,outputSize={width:1080,height:400};
 let pointerState=null,uploadMode='original';
@@ -159,6 +172,7 @@ function setupCropCanvas(){
  const dpr=window.devicePixelRatio||1,w=cropStage.clientWidth,h=cropStage.clientHeight;
  cropCanvas.width=Math.round(w*dpr);cropCanvas.height=Math.round(h*dpr);
  cropCtx.setTransform(dpr,0,0,dpr,0,0);
+ cropCtx.imageSmoothingQuality='high';
  const scale=Math.min(w/sourceImage.naturalWidth,h/sourceImage.naturalHeight);
  displayRect={x:(w-sourceImage.naturalWidth*scale)/2,y:(h-sourceImage.naturalHeight*scale)/2,w:sourceImage.naturalWidth*scale,h:sourceImage.naturalHeight*scale};
  resetCropRect();drawCropper();
@@ -169,9 +183,33 @@ function selectRatio(ratio){
  ratioList.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.ratio===String(ratio)));
  const selected=ratioList.querySelector(`button[data-ratio="${ratio}"]`);
  outputSize=selected?.dataset.width?{width:Number(selected.dataset.width),height:Number(selected.dataset.height)}:null;
+ const fixed=document.getElementById('fixedCropSize');
+ fixed.disabled=!outputSize;
+ fixed.textContent=outputSize?'固定尺寸：'+outputSize.width+'×'+outputSize.height:'自由裁切使用原圖解析度';
+ if(!outputSize)cropResolution.value='original';
  if(displayRect){resetCropRect();drawCropper();}
 }
 ratioList.addEventListener('click',e=>{const b=e.target.closest('button[data-ratio]');if(b)selectRatio(b.dataset.ratio);});
+cropResolution.addEventListener('change',updateCropOutputInfo);
+
+function sourceCropBounds(){
+ const width=sourceImage.naturalWidth,height=sourceImage.naturalHeight;
+ const scaleX=width/displayRect.w,scaleY=height/displayRect.h;
+ const x=clamp(Math.round((cropRect.x-displayRect.x)*scaleX),0,width-1);
+ const y=clamp(Math.round((cropRect.y-displayRect.y)*scaleY),0,height-1);
+ const right=clamp(Math.round((cropRect.x+cropRect.w-displayRect.x)*scaleX),x+1,width);
+ const bottom=clamp(Math.round((cropRect.y+cropRect.h-displayRect.y)*scaleY),y+1,height);
+ return {x,y,width:right-x,height:bottom-y};
+}
+function cropOutputSize(bounds){
+ return cropResolution.value==='fixed'&&outputSize?outputSize:{width:bounds.width,height:bounds.height};
+}
+function updateCropOutputInfo(){
+ if(!sourceImage||!displayRect||!cropRect)return;
+ const size=cropOutputSize(sourceCropBounds());
+ document.getElementById('cropOutputInfo').textContent='輸出 '+size.width+'×'+size.height+' px · 無損 PNG';
+ cropError.hidden=true;
+}
 
 let scaleBase=null;
 function resetScaleBase(){scaleBase=cropRect?{...cropRect}:null;document.getElementById('centerScale').value=100;document.getElementById('scaleValue').textContent='100%';}
@@ -193,6 +231,7 @@ function resetCropRect(){
 }
 
 function drawCropper(){
+ updateCropOutputInfo();
  const w=cropStage.clientWidth,h=cropStage.clientHeight;
  cropCtx.clearRect(0,0,w,h);
  cropCtx.drawImage(sourceImage,displayRect.x,displayRect.y,displayRect.w,displayRect.h);
@@ -254,12 +293,17 @@ window.addEventListener('resize',()=>{if(cropModal.classList.contains('open'))se
 document.getElementById('cancelCrop').onclick=()=>{cropModal.classList.remove('open');statusEl.textContent='已取消上傳';};
 document.getElementById('uploadOriginal').onclick=()=>finishSelection(sourceData);
 document.getElementById('confirmCrop').onclick=()=>{
- const scaleX=sourceImage.naturalWidth/displayRect.w,scaleY=sourceImage.naturalHeight/displayRect.h;
- const sx=Math.round((cropRect.x-displayRect.x)*scaleX),sy=Math.round((cropRect.y-displayRect.y)*scaleY);
- const sw=Math.max(1,Math.round(cropRect.w*scaleX)),sh=Math.max(1,Math.round(cropRect.h*scaleY));
- const out=document.createElement('canvas');out.width=outputSize?.width||sw;out.height=outputSize?.height||sh;
- out.getContext('2d').drawImage(sourceImage,sx,sy,sw,sh,0,0,out.width,out.height);
- finishSelection(out.toDataURL('image/jpeg',.92));
+ if(!sourceImage||!displayRect||!cropRect)return;
+ try{
+  const bounds=sourceCropBounds(),size=cropOutputSize(bounds);
+  const out=document.createElement('canvas');out.width=size.width;out.height=size.height;
+  const ctx=out.getContext('2d');ctx.imageSmoothingQuality='high';
+  ctx.drawImage(sourceImage,bounds.x,bounds.y,bounds.width,bounds.height,0,0,out.width,out.height);
+  const data=out.toDataURL('image/png');
+  if(!data.startsWith('data:image/png;base64,'))throw Error('圖片尺寸過大，請縮小裁切範圍或選擇固定尺寸');
+  if(data.length-data.indexOf(',')-1>Math.ceil(MAX_UPLOAD_BYTES/3)*4)throw Error('裁切圖片超過 10 MB，請縮小裁切範圍或選擇固定尺寸');
+  finishSelection(data);
+ }catch(e){cropError.textContent=e.message;cropError.hidden=false;}
 };
 
 function finishSelection(data){
@@ -306,3 +350,4 @@ function copyUrl(){navigator.clipboard.writeText(urlEl.textContent);statusEl.tex
 </script>
 </body>
 </html>
+
