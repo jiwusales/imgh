@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="./shared.css?v=20261024-2"><script src="./shared.js?v=20261024-2" defer></script>
 <meta charset="UTF-8">
 <title>圖片去背｜JIWU</title>
-<meta name="jiwu-release" content="20261117-split-alpha-fix">
+<meta name="jiwu-release" content="20261117-remove-original-resolution">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 *{box-sizing:border-box}
@@ -200,7 +200,7 @@ button{touch-action:manipulation}
  </div>
 
  <div class="panel mobile-active" id="panelEdit">
-  <div class="title">② 去背修補 600×600</div>
+  <div class="title">② 去背修補 · 保留原圖</div>
   <div class="imgbox" id="editBox">
    <div id="canvasStage" hidden>
     <canvas id="editCanvas"></canvas>
@@ -310,7 +310,7 @@ button{touch-action:manipulation}
 框選移動：拖出方框選取商品，再從框內拖曳移動；點框外可重新框選。Esc 取消選取／本次拖曳。<br>
 要排成 3／2／2，可直接把第二列的商品分批移到第三列。<br>
 深灰底只供檢查去背，不會加進輸出圖片。<br>
-成品固定 600×600；「紅」：長邊 520px、對齊底部紅線（40px）；「藍」：長邊 560px、對齊底部藍線（20px）；「小」：長邊 400px、水平置中、底部留 40px；「中」切換置中。預設紅。
+去背、修補與拆圖保留原圖像素，最後才縮放一次並輸出無損 PNG。成品固定 600×600；「紅」：長邊 520px、對齊底部紅線（40px）；「藍」：長邊 560px、對齊底部藍線（20px）；「小」：長邊 400px、水平置中、底部留 40px；「中」切換置中。預設紅。
 </div>
 
 <div class="result" id="result">
@@ -328,8 +328,10 @@ const $=id=>document.getElementById(id);
 const canvas=$('editCanvas'),ctx=canvas.getContext('2d',{alpha:true});
 const editBox=$('editBox'),stage=$('canvasStage'),selectionRect=$('selectionRect');
 
-const CUT_MODEL='small',CUT_MAX_SIDE=1600,EDIT_MAX_SIDE=1600,HISTORY_MAX=5;
+const CUT_MODEL='small',HISTORY_MAX=5;
 const VISIBLE_ALPHA=10;
+// Tool sizes use the existing 600px coordinate system; image pixels stay native.
+const editScale=()=>canvas.width/600;
 
 let splitPieces=[],splitUploading=false;
 let replaceTarget=null;
@@ -596,8 +598,9 @@ async function autoCut(){
   let cut;
   try{cut=await loadImage(url)}finally{URL.revokeObjectURL(url)}
   if(version!==loadVersion)return;
+  if(cut.naturalWidth!==input.width||cut.naturalHeight!==input.height)throw Error('去背結果尺寸不符，請重試');
   saveHistory();
-  ctx.clearRect(0,0,600,600);ctx.drawImage(cut,0,0,600,600);
+  ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(cut,0,0);
   resetBaseline=cloneCanvas(canvas);baselineIsCut=true;
   updateFinal();
   $('status').textContent='✅ 自動去背完成，可繼續修補或移動商品';
@@ -615,17 +618,18 @@ async function autoCut(){
 
 function setupEditor(){
  const rw=removedSource.naturalWidth,rh=removedSource.naturalHeight;
- const s=520/Math.max(rw,rh);
- const dw=Math.round(rw*s),dh=Math.round(rh*s);
- const dx=Math.round((600-dw)/2),dy=Math.round((600-dh)/2);
+ // Keep every source pixel. Only CSS scales the preview, and make600Image
+ // performs the single final resize after editing or splitting.
+ const side=Math.max(600,rw,rh);
+ const dx=Math.floor((side-rw)/2),dy=Math.floor((side-rh)/2);
 
- canvas.width=600;
- canvas.height=600;
+ canvas.width=side;
+ canvas.height=side;
 
  ctx.clearRect(0,0,canvas.width,canvas.height);
  ctx.imageSmoothingEnabled=true;
  ctx.imageSmoothingQuality='high';
- ctx.drawImage(removedSource,dx,dy,dw,dh);
+ ctx.drawImage(removedSource,dx,dy);
 
  originalWork=document.createElement('canvas');
  originalWork.width=canvas.width;
@@ -634,7 +638,7 @@ function setupEditor(){
  const oc=originalWork.getContext('2d');
  oc.imageSmoothingEnabled=true;
  oc.imageSmoothingQuality='high';
- oc.drawImage(originalSource,dx,dy,dw,dh);
+ oc.drawImage(originalSource,dx,dy);
 
  stage.hidden=false;
  $('editPh').style.display='none';
@@ -870,9 +874,7 @@ function finishMove(e){
   $('status').textContent=moveSelection?'已框選，從框內拖曳即可移動':'請拖出方框選取商品';
  }else if(moveDrag){
   if(moveSelection.x!==moveDrag.rect.x||moveSelection.y!==moveDrag.rect.y){
-   history.push(moveDrag.base);
-   if(history.length>HISTORY_MAX)history.shift();
-   $('undoBtn').disabled=false;
+   keepHistory(moveDrag.base);
    updateFinal();
   }
   moveDrag=null;
@@ -885,7 +887,7 @@ function cancelMove(){
  moveDrag=null;moveSelection=null;moveSelecting=false;drawing=false;brushMask=null;brushLast=null;hideSelection();renderMaskOverlay();
 }
 function resizeOriginalWork(w,h){
- if(!originalWork)return;
+ if(!originalWork||(originalWork.width===w&&originalWork.height===h))return;
  const c=document.createElement('canvas');c.width=w;c.height=h;
  c.getContext('2d').drawImage(originalWork,0,0);originalWork=c;
 }
@@ -927,7 +929,7 @@ function drawBetween(a,b){
 
 /* 羽化數值以 600×600 畫布像素計算，0 表示硬邊 */
 function featherAmount(){
- return Math.max(0,Math.min(20,Number($('featherPx').value)||0));
+ return Math.max(0,Math.min(20,Number($('featherPx').value)||0))*editScale();
 }
 function featherMask(mask){
  const px=featherAmount();
@@ -1021,8 +1023,12 @@ function cloneCanvas(source){
 }
 
 function saveHistory(){
- history.push(cloneCanvas(canvas));
- if(history.length>HISTORY_MAX)history.shift();
+ keepHistory(cloneCanvas(canvas));
+}
+function keepHistory(snapshot){
+ history.push(snapshot);
+ const limit=Math.max(1,Math.min(HISTORY_MAX,Math.floor(128*1024*1024/(canvas.width*canvas.height*4))));
+ while(history.length>limit)history.shift();
  $('undoBtn').disabled=false;
 }
 
@@ -1044,7 +1050,7 @@ function undo(){
 function resetCut(){
  if(!resetBaseline)return;
  cancelMove();clearTimeout(finalTimer);
- ctx.clearRect(0,0,600,600);ctx.drawImage(resetBaseline,0,0);
+ ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(resetBaseline,0,0);
  history=[];$('undoBtn').disabled=true;
  scheduleFinalUpdate(0);
  $('status').textContent=baselineIsCut?'✅ 已重設為自動去背結果':'✅ 已重設為載入時的圖片';
@@ -1084,7 +1090,7 @@ function make600Image(source){
 
  if(maxX<0)throw new Error('找不到商品');
 
- const pad=3;
+ const pad=Math.ceil(3*editScale());
  const x1=Math.max(0,minX-pad);
  const y1=Math.max(0,minY-pad);
  const x2=Math.min(sw0,maxX+1+pad);
@@ -1118,6 +1124,7 @@ function splitCurrent(){
  cancelMove();clearTimeout(finalTimer);
  try{
   const w=canvas.width,h=canvas.height,pixels=ctx.getImageData(0,0,w,h),d=pixels.data;
+  const scale=editScale(),pad=Math.ceil(3*scale);
   const labels=new Int32Array(w*h),queue=new Int32Array(w*h),parts=[];
   for(let start=0;start<w*h;start++){
    if(labels[start]||d[start*4+3]<=VISIBLE_ALPHA)continue;
@@ -1132,21 +1139,21 @@ function splitCurrent(){
    }
    parts.push(part);
   }
-  const largest=parts.reduce((n,p)=>Math.max(n,p.count),0),minimum=Math.max(24,largest*.015);
+  const largest=parts.reduce((n,p)=>Math.max(n,p.count),0),minimum=Math.max(24*scale*scale,largest*.015);
   const main=parts.filter(p=>p.count>=minimum).map(p=>({...p,ids:new Set([p.id])}));
   if(!main.length)throw new Error('找不到商品，請先完成去背');
   // Attach nearby tiny fringe/loop fragments without joining two full products.
   for(const p of parts.filter(p=>p.count<minimum)){
    let nearest=null,distance=Infinity;
    for(const m of main){const gap=Math.hypot(Math.max(0,m.x-p.x2,p.x-m.x2),Math.max(0,m.y-p.y2,p.y-m.y2));if(gap<distance){distance=gap;nearest=m}}
-   if(nearest&&distance<=10){nearest.ids.add(p.id);nearest.x=Math.min(nearest.x,p.x);nearest.y=Math.min(nearest.y,p.y);nearest.x2=Math.max(nearest.x2,p.x2);nearest.y2=Math.max(nearest.y2,p.y2)}
+   if(nearest&&distance<=10*scale){nearest.ids.add(p.id);nearest.x=Math.min(nearest.x,p.x);nearest.y=Math.min(nearest.y,p.y);nearest.x2=Math.max(nearest.x2,p.x2);nearest.y2=Math.max(nearest.y2,p.y2)}
   }
-  // Retain up to 3px of soft edges, without letting faint residue join products.
+  // Retain the same visible soft-edge width at every source resolution.
   const owners=new Array(parts.length+1);
   for(const p of main)for(const id of p.ids)owners[id]=p;
   let head=0,tail=0;
   for(let pos=0;pos<w*h;pos++)if(owners[labels[pos]])queue[tail++]=pos;
-  for(let edge=0;edge<3&&head<tail;edge++){
+  for(let edge=0;edge<pad&&head<tail;edge++){
    const end=tail;
    while(head<end){
     const pos=queue[head++],id=labels[pos],p=owners[id],x=pos%w,y=(pos/w)|0;
@@ -1162,13 +1169,13 @@ function splitCurrent(){
   const rows=[];
   for(const p of main){let row=rows.find(r=>Math.abs(r.y-p.y)<Math.min(r.height,p.y2-p.y+1)*.4);if(!row){row={y:p.y,height:p.y2-p.y+1,parts:[]};rows.push(row)}row.parts.push(p)}
   splitPieces=rows.flatMap(r=>r.parts.sort((a,b)=>a.x-b.x)).map(p=>{
-   const c=document.createElement('canvas');c.width=p.x2-p.x+7;c.height=p.y2-p.y+7;
+   const c=document.createElement('canvas');c.width=p.x2-p.x+1+pad*2;c.height=p.y2-p.y+1+pad*2;
    const pc=c.getContext('2d'),image=pc.createImageData(c.width,c.height);
    for(let y=p.y;y<=p.y2;y++)for(let x=p.x;x<=p.x2;x++){
     const index=y*w+x;if(!p.ids.has(labels[index]))continue;
-    image.data.set(d.subarray(index*4,index*4+4),((y-p.y+3)*c.width+x-p.x+3)*4);
+    image.data.set(d.subarray(index*4,index*4+4),((y-p.y+pad)*c.width+x-p.x+pad)*4);
    }
-   pc.putImageData(image,0,0);return {source:c,x:p.x-3,y:p.y-3};
+   pc.putImageData(image,0,0);return {source:c,x:p.x-pad,y:p.y-pad};
   });
   renderSplitPieces();$('status').textContent='✅ 已拆成 '+splitPieces.length+' 張，大小沿用紅／藍／小／中設定';
   $('splitResults').scrollIntoView({behavior:'smooth',block:'nearest'});
